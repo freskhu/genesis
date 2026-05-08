@@ -1,0 +1,9 @@
+# Genesis runtime dependencies
+# All operate locally — no cloud, no telemetry.
+
+apsw>=3.46.0           # SQLite bindings (faster + safer than stdlib sqlite3)
+sqlite-vec>=0.1.6      # Vector extension for semantic search
+sentence-transformers>=3.0.0  # Local embeddings for MemPalace
+
+# Optional but recommended for the cross-encoder reranker used in hybrid search:
+#   pip install torch
