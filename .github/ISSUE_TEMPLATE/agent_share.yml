@@ -1,0 +1,46 @@
+name: 🤝 Agent share
+description: Submit an agent definition for inclusion in the core templates or the Marketplace discussion.
+labels: [agent-share]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sharing an agent? Thanks. The bar for *core* inclusion is high (must be useful to most users). For everything else, post in [Discussions → Agent Marketplace](https://github.com/freskhu/genesis/discussions) instead — wider discoverability.
+  - type: input
+    id: name
+    attributes:
+      label: Agent name
+      placeholder: Lucia
+    validations:
+      required: true
+  - type: input
+    id: role
+    attributes:
+      label: Role (one line)
+      placeholder: Marketing Communications Specialist — drafts customer-facing copy in the user's voice.
+    validations:
+      required: true
+  - type: textarea
+    id: definition
+    attributes:
+      label: Agent definition (full SKILL.md content)
+      description: Paste the YAML front-matter + body. Sanitise any personal references first.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this agent matters to others
+      description: Who benefits. What pattern does it solve. Why is it generic enough to share.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where to publish
+      options:
+        - "Core templates (PR will be needed)"
+        - "Agent Marketplace discussion (lower bar)"
+    validations:
+      required: true

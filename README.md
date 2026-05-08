@@ -173,9 +173,16 @@ A few opinions baked in:
 
 ---
 
+## Community
+
+Two channels:
+
+- 💬 **[Discussions](https://github.com/freskhu/genesis/discussions)** — *Show & Tell* (share your setup), *Ideas* (debate features), *Q&A* (ask for help), *Agent Marketplace* (share agent definitions). Informal.
+- 🐛 **[Issues](https://github.com/freskhu/genesis/issues)** — bugs and concrete feature requests with scope.
+
 ## Contributing
 
-See [`AGENTS.md`](AGENTS.md) for how the agentic structure expects extensions, and [`docs/`](docs/) for the deeper guide.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the bar, and [`AGENTS.md`](AGENTS.md) for how the agentic structure expects extensions.
 
 Pull requests welcome. Use cases more welcome — the more diverse the deployments, the better Genesis gets at fitting non-template lives.
 

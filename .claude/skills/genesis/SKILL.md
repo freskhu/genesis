@@ -102,6 +102,24 @@ Ask one question at a time. Wait for each answer. Reflect back before moving on.
 
 ---
 
+## Step 5b — Stay in sync with upstream
+
+**Q19.** "Genesis is open source and gets updates — new skills, better hooks, bug fixes. Want me to check daily and tell you what changed? You can review and apply, ignore, or pause anytime."
+
+If yes:
+- Set `auto_sync_enabled = true` in `Database/genesis_config.json`.
+- Record current commit SHA as `last_synced_commit`.
+- Mention `/sync-upstream` skill — runs the daily check manually.
+- Optional: instruct user to add a daily reminder via `/schedule` to invoke `/sync-upstream` automatically.
+
+If no:
+- Set `auto_sync_enabled = false`.
+- Mention they can run `/sync-upstream` manually whenever they're curious.
+
+Either way: write the choice to the orchestrator profile so future sessions remember.
+
+---
+
 ## Step 6 — Synthesis (show the artefact)
 
 Now the system writes (and **shows the user, live**) two artefacts:

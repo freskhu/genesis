@@ -1,0 +1,55 @@
+name: 🐛 Bug report
+description: Something is broken.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Concrete reports get fixed faster.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Plain text. Include the exact command or skill you ran, and what you expected vs what occurred.
+      placeholder: |
+        I ran `/genesis` for the second time on a fresh clone. After Q4 it crashed with...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Number the steps. The fewer, the better.
+      placeholder: |
+        1. Clone fresh
+        2. `pip install -r requirements.txt`
+        3. `sqlite3 Database/team.db < Database/schema.sql`
+        4. `claude` then `/genesis`
+        5. ...
+    validations:
+      required: true
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      description: Run `claude --version` (or screenshot the about pane).
+      placeholder: 1.2.3
+  - type: input
+    id: os
+    attributes:
+      label: OS / Python
+      placeholder: macOS 14.5 / Python 3.11.9
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / errors
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues — this is not a duplicate.
+          required: true
+        - label: I scrubbed personal data from my report (names, paths, tokens).
+          required: true

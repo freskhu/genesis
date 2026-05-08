@@ -1,0 +1,41 @@
+name: ✨ Feature request
+description: A defined feature with scope, intent, and ideally a willing builder.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For exploratory ideas, please use [Discussions → Ideas](https://github.com/freskhu/genesis/discussions) instead.
+        Issues are for features with concrete scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Concrete user pain. Avoid "it would be cool if" — start from the friction.
+      placeholder: |
+        Today, syncing upstream changes requires running git commands manually.
+        For non-developer users, that's a barrier.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Sketch the shape — a new skill, a script, a config, a doc.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you think of? Why not those?
+  - type: dropdown
+    id: builder
+    attributes:
+      label: Are you willing to build it
+      options:
+        - "Yes, I'll open the PR"
+        - "Yes, but I need guidance"
+        - "No, just proposing"
+    validations:
+      required: true
