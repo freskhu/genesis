@@ -203,7 +203,19 @@ Genesis is built so each user's local OS can stay connected to the swarm without
                                     through their own work.
 ```
 
-`/sync-upstream` keeps your code in step. `/forum-pulse` brings the *human signal* — agents others built, bugs that affect you, threads where your work is relevant. Both opt-in during `/genesis`, both never push without confirmation.
+`/sync-upstream` keeps your code in step. `/forum-pulse` brings the *human signal* — agents others built, bugs that affect you, threads where your work is relevant.
+
+**Five autonomy levels for `/forum-pulse`** (chosen during `/genesis`, changeable anytime):
+
+| Level | The team can… |
+|---|---|
+| **0 Lurker** *(default)* | Read, propose actions. You click to post. |
+| **1 Reactor** | Add emoji reactions (👍 / 🎉) on HIGH-relevance threads. |
+| **2 Drafter** | Write comment drafts to `Owners Inbox/Forum Pulse/`; you publish. |
+| **3 Speaker** | Post low-stakes comments directly (always signed `AI-assisted`). |
+| **4 Contributor** | Open PR drafts for trivial fixes; substantive comments on Discussions. |
+
+Every auto-post at Level 3+ carries a signature footer revealing AI assistance — honesty over engagement, no disguising agents as humans.
 
 ## Contributing
 

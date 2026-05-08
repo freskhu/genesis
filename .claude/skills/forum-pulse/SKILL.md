@@ -171,13 +171,63 @@ If the user opted into auto-sync during `/genesis` (see `auto_sync_enabled`), su
 
 ---
 
+## Autonomy levels
+
+By default, the skill is read-only — every action requires user confirmation. But the user can raise the autonomy level in `Database/genesis_config.json` (`forum_pulse_level` field). Each level inherits the previous.
+
+| Level | Name | What the agent can do without asking |
+|---|---|---|
+| **0** | **Lurker** *(default)* | Read, classify, propose actions. Never post or import anything. |
+| **1** | **Reactor** | Add emoji reactions (👍 👎 🎉 ❤️) on threads marked HIGH relevance. No text. |
+| **2** | **Drafter** | Write comment drafts to `Owners Inbox/Forum Pulse/draft-{n}.md`. User reviews and posts manually. |
+| **3** | **Speaker** | Post low-stakes comments directly: "+1" with one-line context on Ideas, factual answers to Q&A where the palace has clear evidence, "I see this too" on bug reports matching the user's setup. Always signed. |
+| **4** | **Contributor** | Open PR drafts for trivial fixes (typos, doc edits) referenced in Issues. Comment substantively in Discussions when the palace gives strong signal. Always signed. |
+
+### Signature for any auto-post (level 3+)
+
+Every comment, reaction, or PR opened by the agent ends with:
+
+```markdown
+---
+*Posted by `@{user}`'s Genesis instance ({skill_that_triggered}). Reply here or open a discussion to push back.*
+```
+
+Honesty matters — readers always know it's AI-assisted, never disguised as the user's direct typing.
+
+### Rate limits per level
+
+| Level | Max posts/week | Reactions/week | PR drafts/month |
+|---|---|---|---|
+| 0 | 0 | 0 | 0 |
+| 1 | 0 | 20 | 0 |
+| 2 | 0 (drafts only) | 20 | 0 |
+| 3 | 5 | 30 | 0 |
+| 4 | 10 | 50 | 4 |
+
+Hard caps. Counts kept in `genesis_config.json.forum_pulse_counters`. Reset weekly/monthly.
+
+### Hard skip rules (apply at all levels)
+
+- **Don't reply to your own threads** — if user is OP, never auto-engage.
+- **Don't post if user already replied** in last 24h — they're on it.
+- **Don't post in heated threads** — if the last 3 comments contain disagreement markers (`disagree`, `wrong`, `actually`, downvote ratio rising), pause and surface to user instead.
+- **Kill switch:** if user runs `/forum-pulse --pause`, halt all autonomous actions until explicit `/forum-pulse --resume`. Persisted across sessions.
+- **Audit:** every autonomous action logged to `activity_history` with `action='forum_post'` or `'forum_reaction'` or `'forum_pr_draft'`.
+
+### When to escalate
+
+If the agent is uncertain about an action's appropriateness — even at Level 4 — drop to "propose, ask user" mode for that single item. Better to over-ask than to over-post.
+
+---
+
 ## Anti-patterns
 
-- **Never post comments or issues without explicit user confirmation per-action.** Drafting is fine; posting is theirs.
-- **Never import agents without showing the source.** Marketplace agents can be malicious; always show the SKILL.md content first.
+- **At Level 0 (default): never post or import anything without per-item confirmation.** Drafting is fine; posting is the user's.
+- **Even at Level 4: importing agents requires a confirmation click.** Marketplace agents can be malicious — always show the SKILL.md content first.
 - **Don't surface every thread.** The whole point is filtering. If everything is "MEDIUM", drop the digest entirely and tell the user "nothing relevant this run."
-- **Don't double-count.** If a thread was already proposed in a previous run, skip it unless something material changed (new comment from user the user knows, new label, state change).
-- **Respect rate limits.** GitHub API has 5000 req/h authenticated — cache responses for 1h on repeat calls in same session.
+- **Don't double-count.** If a thread was already proposed in a previous run, skip it unless something material changed (new comment, new label, state change).
+- **Respect GitHub rate limits.** 5000 req/h authenticated — cache responses for 1h on repeat calls in same session.
+- **Never disguise AI as human.** Any auto-post at L3+ MUST carry the signature footer. No exceptions.
 
 ---
 

@@ -124,17 +124,34 @@ Either way: write the choice to the orchestrator profile so future sessions reme
 
 **Q20.** "Other Genesis users share agents, ideas, and bug fixes through the upstream community. Want me to read it daily and tell you only what's relevant to *your* work? I cross-reference your palace — generic noise gets filtered."
 
-If yes:
-- Set `forum_pulse_enabled = true` in `Database/genesis_config.json`.
-- Record `last_pulse_check = now`.
-- Mention `/forum-pulse` skill — runs the cross-reference + digest manually.
-- Optional: schedule daily via `/schedule daily 09:00 /forum-pulse`.
+If no: set `forum_pulse_enabled = false`. They can still run `/forum-pulse` manually whenever curious.
 
-If no:
-- Set `forum_pulse_enabled = false`.
-- Mention they can run `/forum-pulse` whenever curious — same skill, just opt-out of daily.
+If yes — follow up:
 
-The pulse never posts comments or imports agents without explicit per-item confirmation.
+**Q20a.** "How autonomous should the team be in the forum?"
+
+| Pick | What happens |
+|---|---|
+| **0 — Lurker** *(default, safest)* | Reads, proposes actions to you. Never posts or imports anything without a click. |
+| **1 — Reactor** | Adds emoji reactions (👍 / 🎉) on HIGH-relevance threads automatically. |
+| **2 — Drafter** | Writes comment drafts to `Owners Inbox/Forum Pulse/`. You review and post manually. |
+| **3 — Speaker** | Posts low-stakes comments directly ("+1 with context", "I see this too on a 12k drawer setup"). Always signed `(AI-assisted by your Genesis instance)`. |
+| **4 — Contributor** | Opens PR drafts for typo/doc fixes. Comments substantively when palace gives strong signal. Always signed. |
+
+Each level inherits the previous. Defaults to **0**. User can change later by editing `Database/genesis_config.json` field `forum_pulse_level` or via the orchestrator.
+
+Persist to config:
+```json
+{
+  "forum_pulse_enabled": true,
+  "forum_pulse_level": 0,
+  "last_pulse_check": "2026-05-08T22:00:00Z"
+}
+```
+
+Optional: schedule daily via `/schedule daily 09:00 /forum-pulse`.
+
+**Crucial guardrail:** Level 3+ posts ALWAYS carry a signature footer revealing AI assistance. Honesty over engagement. Never disguised as human.
 
 ---
 
