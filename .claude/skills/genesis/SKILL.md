@@ -120,6 +120,24 @@ Either way: write the choice to the orchestrator profile so future sessions reme
 
 ---
 
+## Step 5c — Listen to the swarm
+
+**Q20.** "Other Genesis users share agents, ideas, and bug fixes through the upstream community. Want me to read it daily and tell you only what's relevant to *your* work? I cross-reference your palace — generic noise gets filtered."
+
+If yes:
+- Set `forum_pulse_enabled = true` in `Database/genesis_config.json`.
+- Record `last_pulse_check = now`.
+- Mention `/forum-pulse` skill — runs the cross-reference + digest manually.
+- Optional: schedule daily via `/schedule daily 09:00 /forum-pulse`.
+
+If no:
+- Set `forum_pulse_enabled = false`.
+- Mention they can run `/forum-pulse` whenever curious — same skill, just opt-out of daily.
+
+The pulse never posts comments or imports agents without explicit per-item confirmation.
+
+---
+
 ## Step 6 — Synthesis (show the artefact)
 
 Now the system writes (and **shows the user, live**) two artefacts:

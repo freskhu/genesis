@@ -180,6 +180,31 @@ Two channels:
 - 💬 **[Discussions](https://github.com/freskhu/genesis/discussions)** — *Show & Tell* (share your setup), *Ideas* (debate features), *Q&A* (ask for help), *Agent Marketplace* (share agent definitions). Informal.
 - 🐛 **[Issues](https://github.com/freskhu/genesis/issues)** — bugs and concrete feature requests with scope.
 
+### The pulse loop
+
+Genesis is built so each user's local OS can stay connected to the swarm without drowning in noise:
+
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│  Your Genesis       │         │  freskhu/genesis    │
+│  (local fork)       │         │  Discussions+Issues │
+└──────────┬──────────┘         └──────────┬──────────┘
+           │                                │
+           │  /sync-upstream  ←───── code ──┤
+           │  (daily, opt-in)               │
+           │                                │
+           │  /forum-pulse  ←──── threads ──┤
+           │  (daily, opt-in,               │
+           │   filtered by your palace)     │
+           │                                │
+           ▼                                ▼
+   You see only what                Other forks see the
+   matters to YOU.                  same — each filtered
+                                    through their own work.
+```
+
+`/sync-upstream` keeps your code in step. `/forum-pulse` brings the *human signal* — agents others built, bugs that affect you, threads where your work is relevant. Both opt-in during `/genesis`, both never push without confirmation.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the bar, and [`AGENTS.md`](AGENTS.md) for how the agentic structure expects extensions.
