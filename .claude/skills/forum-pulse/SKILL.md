@@ -86,7 +86,7 @@ Forum pulse — 2026-05-15 · 7 days · 12 new threads
   ━━ HIGH RELEVANCE ━━
   💬 #42  Discussion · Agent Marketplace
       "Lucia v2 — better LinkedIn voice tuning"
-      → matches your "Curval marketing" wing (semantic dist 0.87)
+      → matches your "product marketing" wing (semantic dist 0.87)
       → 3 comments, last from @joana 2h ago
 
   🐛 #29  Issue · BUG · open
