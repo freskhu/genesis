@@ -4,7 +4,7 @@
 
 CREATE TABLE processed_inbox_files (
     id              INTEGER PRIMARY KEY,
-    file_path       TEXT    NOT NULL UNIQUE,       -- full relative path from project root (e.g. "Team Inbox/gobii-context-prompt.md")
+    file_path       TEXT    NOT NULL UNIQUE,       -- full relative path from project root (e.g. "Team Inbox/project-context-prompt.md")
     filename        TEXT    NOT NULL,               -- just the filename for quick display
     status          TEXT    NOT NULL DEFAULT 'detected'
                         CHECK (status IN ('detected', 'processing', 'processed', 'skipped', 'error')),
