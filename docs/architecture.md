@@ -90,6 +90,16 @@ Sub-projects get their own folder: `Owners Inbox/Marketing/`, `Owners Inbox/Proj
 
 The DB is for **operational** state. Knowledge and memory live in MemPalace.
 
+## Governance — capability over vigilance
+
+Five layers describe what the system *is*. Three principles describe how it stays safe as it gains autonomy. Each was reached the hard way, by watching where vigilance-based rules fail.
+
+**Govern by capability, not by vigilance.** A rule the orchestrator must remember to follow ("always ask before doing X") fails on the one confused night it forgets. Where a refusal guards a *narrow, downstream* capability, the stronger move is to remove the capability itself: the orchestrator holds no wire to the sensitive endpoint, so the bad action is impossible by construction, not prevented by a check that has to pass every time. Not every refusal converts. The orchestrator's broad authority to read, propose, and route cannot be removed without removing the orchestrator, and that residual stays policy. The value of the audit is the sort: which refusals guard a capability narrow enough to cut into a missing wire, and which are the irreducible core where vigilance is spent deliberately.
+
+**Govern by risk of propagation, not by file type.** Not every write is equally dangerous. The one that matters is the write that loads back into the agent every session, the always-on context, because that is what a poisoned entry propagates through. So the control follows the propagation surface, not the storage format: additive writes to the store are free and ungated; the always-loaded index is bounded and diff-controlled; irreversible destruction (`DROP`, `DELETE`-without-`WHERE`, `TRUNCATE`) is hard-stopped at the boundary. An inert archive nobody loads carries none of that weight and needs none of that ceremony.
+
+**Model tier is a cost axis, not a safety axis.** Which model runs a task is a budget decision. Safety comes from separation of duties and a human trigger on irreversible actions, not from how capable the model is. The two are independent: a cheaper model does not make an irreversible action safer, and a premium one does not make it safe to automate.
+
 ## How a request flows
 
 ```
