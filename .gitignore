@@ -21,6 +21,10 @@ Database/*.db-journal
 !.claude/agents/.gitkeep
 Team/*
 !Team/.gitkeep
+!Team/_briefs/
+Team/_briefs/*
+!Team/_briefs/_TEMPLATE.md
+!Team/_briefs/README.md
 
 # Inbox content
 Owners Inbox/*
