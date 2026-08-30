@@ -1,12 +1,23 @@
 # Session End Protocol (MANDATORY)
 
 **Trigger:** End of every conversation (before the orchestrator closes the session).
+Enforced by the `force-session-end.sh` hook (`Stop`), which blocks the close
+until Steps 4, 4.5 and 5 are evidenced. The start side has no enforcement hook —
+it is invoked manually via `/session-start`.
+
+**Single source of truth:** this file. The `/session-end` skill is a thin wrapper
+that points here. Do not duplicate the logic in the skill: two copies of a
+protocol drift, and the copy the agent happens to read wins.
 
 At the **end of every conversation**, the orchestrator must:
 
-**Step 1 — Palace Updates:**
+**Step 1 — Palace & Twin Updates:**
 - Check if new info about the user surfaced → `palace.py add (content, wing="owner", room="identity|preferences|projects")`
 - Check if new entity facts emerged → `palace.py kg-add(subject, predicate, object)` or `palace.py kg-invalidate` for outdated facts
+- Run `/twin-update` — detect new information about the user from this session and
+  refresh the digital twin. The twin is only useful while it is current. (This
+  reminder used to live in the start skill; it belongs at the end, where the new
+  information actually exists.)
 
 **Step 2 — Diary Entry:**
 - Write a session diary summarizing key actions, delegations, and outcomes:

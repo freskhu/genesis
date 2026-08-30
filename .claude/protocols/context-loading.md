@@ -16,10 +16,11 @@ Before asking the user a question, presenting a plan, or briefing an agent, the 
    This reveals connections, roles, and temporal facts about people, projects, and tools.
 3. **Explore cross-wing connections** when the task spans multiple domains:
    ```
-   python3 scripts/palace.py search "room_name" --wing wing1
-   # Cross-wing: search same term across wings to find connections
+   python3 scripts/palace.py search "same term" --wing wing1
+   python3 scripts/palace.py search "same term" --wing wing2
+   # Cross-wing: repeat the same search across wings to find connections
    ```
-   Use `traverse` to follow idea threads across wings. Use `find_tunnels` to discover shared topics between domains.
+   There are no `traverse` or `find_tunnels` subcommands in `palace.py`. Cross-wing exploration is exactly this: repeat the search with a different `--wing`, then `kg-query` the shared entity. (This paragraph used to name two commands that never existed — a protocol that tells an agent to run a command that is not there costs a wasted turn every time it is followed.)
 4. **Search recent activity** for prior work on the topic:
    ```sql
    SELECT action, summary, metadata, occurred_at FROM activity_history

@@ -8,7 +8,7 @@ Every agent invocation MUST be logged in the `llm_calls` table. The orchestrator
 
 After EVERY Agent tool call completes (success or failure), the orchestrator MUST immediately log the call before doing anything else. This includes:
 - Successful delegations
-- Failed delegations (log with `cost_usd = 0`; error details go to `activity_history`, see Circuit Breaker protocol)
+- Failed delegations (error details go to `activity_history`, see the Circuit Breaker protocol)
 - Partial completions (agent hit maxTurns or was interrupted)
 
 ## What to log
@@ -20,35 +20,67 @@ The Agent tool returns `total_tokens`, `tool_uses`, and `duration_ms` in its out
 ```sql
 INSERT INTO llm_calls (task_id, agent_name, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, latency_ms, cost_usd)
 VALUES (
-    '{task_id}',           -- from tasks table or 'ad-hoc' if no formal task
-    '{agent_name}',        -- e.g., 'Maria', 'Sarah', 'Lena'
-    '{model}',             -- e.g., 'claude-opus-4', 'claude-sonnet-4'
-    {input_tokens},        -- from Agent tool output, or estimated as total_tokens * 0.6
-    {output_tokens},       -- from Agent tool output, or estimated as total_tokens * 0.4
-    0,                     -- cache_read_tokens (not yet tracked at orchestrator level)
-    0,                     -- cache_write_tokens (not yet tracked at orchestrator level)
-    {duration_ms},         -- from Agent tool output
-    {cost_usd}             -- estimated: see cost table below
+    '{task_id}',            -- from tasks table, or 'ad-hoc' if no formal task
+    '{agent_name}',         -- e.g., 'Maria', 'Sarah', 'Lena'
+    '{model}',              -- must match a row in model_pricing
+    {input_tokens_or_NULL}, -- exact value if known; NULL if unknown (NEVER 0 — see below)
+    {output_tokens},        -- from Agent tool output (total_tokens is an acceptable lower bound)
+    {cache_read_tokens},    -- 0 if not tracked
+    {cache_write_tokens},   -- 0 if not tracked
+    {duration_ms},          -- from Agent tool output
+    NULL                    -- LET THE TRIGGER COMPUTE — do not hardcode 0
 );
 ```
 
-**Note:** The `llm_calls` table has NO `metadata` column. For failure details, log to `activity_history` with `action = 'agent_failure'` (see Circuit Breaker protocol). For success logging, the token/cost/latency fields are sufficient.
+**Cost is auto-computed.** Migration `012_llm_cost_autocompute` adds an AFTER INSERT
+trigger, `trg_llm_calls_autocost`, that fills `cost_usd` from the `model_pricing`
+table whenever the inserted row has `cost_usd` NULL or 0. An explicitly supplied
+non-zero cost is preserved verbatim. Pass `NULL` and let the database do the
+arithmetic: hardcoding 0 silently under-reports spend, and a zero is
+indistinguishable from a genuinely free call when you audit it months later.
 
-## Cost estimation reference
+If the model has no row in `model_pricing`, the trigger leaves `cost_usd` NULL
+rather than writing a fake zero — the gap stays visible.
 
-| Model | Input $/M tokens | Output $/M tokens |
-|-------|-------------------|---------------------|
-| opus  | 15.00             | 75.00               |
-| sonnet| 3.00              | 15.00               |
-| haiku | 0.25              | 1.25                |
+**Note:** the `llm_calls` table has NO `metadata` column. For failure details, log to
+`activity_history` with `action = 'agent_failure'` (see the Circuit Breaker protocol).
 
-**Formula:** `cost_usd = (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000`
+## Cost reference — `model_pricing` is the source of truth
+
+```sql
+SELECT * FROM model_pricing;
+```
+
+Prices are USD per 1M tokens, seeded by migration 012 and updated as data, not as
+a schema change. Add a row whenever you start using a new model — an unpriced
+model shows up as `unpriced_model` in the quality view below.
+
+**Formula the trigger applies:**
+`cost_usd = (input * p_in + output * p_out + cache_read * p_cache_read + cache_write * p_cache_write) / 1_000_000`
 
 ## If exact token counts cannot be extracted
 
-Estimate conservatively:
-- `input_tokens = total_tokens * 0.6`
-- `output_tokens = total_tokens * 0.4`
-- If no token data available at all: log with `input_tokens = 0, output_tokens = 0, cost_usd = 0`
+The Agent tool's usage block may give `total_tokens` and `duration_ms` without
+splitting input from output. Until that gap closes:
 
-**Never skip logging. A row with zeros is better than no row at all.**
+- **Best path:** set `input_tokens = NULL` and put the full `total_tokens` in
+  `output_tokens`. The trigger then computes a *conservative* lower-bound cost
+  (output is the more expensive side), and the view `v_llm_calls_cost_quality`
+  flags the row as `lower_bound_input_unknown`, so it is visible in audits.
+- **Acceptable fallback:** with only `total_tokens`, split it 0.6 input / 0.4
+  output. Still better than zeros.
+- **NEVER** insert `input_tokens = 0, output_tokens = 0, cost_usd = 0` for a
+  successful call — that hides spend behind a row that looks complete.
+- **Failures:** for a genuinely failed delegation where the agent emitted nothing,
+  `input_tokens = 0, output_tokens = 0` is honest (the trigger computes cost 0),
+  and the failure detail goes to `activity_history` with `action = 'agent_failure'`.
+
+Audit the honesty of the log with:
+
+```sql
+SELECT cost_quality, COUNT(*) FROM v_llm_calls_cost_quality GROUP BY cost_quality;
+```
+
+**Never skip logging.** A row with NULL token counts is better than no row at all —
+the trigger and the cost-quality view will surface it for fixing. A row of zeros is
+worse than either, because nothing surfaces it.
