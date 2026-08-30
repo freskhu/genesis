@@ -1,61 +1,67 @@
 ---
 name: kaizen
-description: "Daily continuous improvement: system health, failure review, procedural learning, and 1-3 concrete improvement proposals"
+description: "Continuous improvement review: system health, failure review, procedural learning, and 1-3 concrete improvement proposals. Supports --auto for unattended scheduled runs."
 user-invocable: true
 allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
 ---
 
-# Kaizen — Daily Continuous Improvement
+# Kaizen — Continuous Improvement
 
-## When to Run
+## Modes
 
-- **Once per day** — at the start of the first session of the day
-- **Triggered by `/session-start`** if not yet run today
-- **Manually** — when {{OWNER}} requests a system review
+| Mode | Trigger | Behaviour |
+|------|---------|-----------|
+| **Interactive** (default) | `/kaizen` from a normal session | Run all phases, present the report and the proposals to the user, never auto-implement. |
+| **Auto** | `/kaizen --auto` from a scheduler | Run all phases unattended. Suppress every step that would ask the user. Write the full report to a dated file and touch the sentinel at the end. |
 
-## Check if Already Run Today
+In `--auto` mode, NEVER pause for input. Where a step would normally ask the
+user, append the question and the assumed default to the report under "Open
+questions", and carry on.
+
+## When to run
+
+Pick a cadence and hold it. Daily works while the system is young and changing
+fast; weekly is enough once it settles. A review that runs more often than there
+is new evidence to review produces proposals padded out to fill the slot.
+
+- **Scheduled** — via a launch agent, cron, or your scheduler of choice, in
+  `--auto` mode.
+- **Manually** — when the user asks for a system review.
+
+## Check whether it already ran
 
 ```sql
 PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;
-SELECT COUNT(*) as ran_today FROM activity_history
-WHERE action = 'kaizen_completed'
-  AND occurred_at > datetime('now', 'start of day');
+SELECT MAX(occurred_at) AS last_run FROM activity_history
+WHERE action = 'kaizen_completed';
 ```
 
-If `ran_today > 0`, skip — already done today.
+If the last run falls inside the current period, skip. The sentinel file (see the
+end of this skill) is the cheap version of the same check, for the wrapper.
 
-## Phase 1 — System Health (run /db-health logic)
+**Long-gap detection:** if the last run is much older than the cadence, say so at
+the top of the report and widen every "since last kaizen" window accordingly.
+Otherwise the run silently reviews a 24-hour slice of a three-week gap and reports
+that everything is fine.
 
-```sql
--- Integrity
-PRAGMA integrity_check;
-PRAGMA foreign_key_check;
+## Phase 1 — System health
 
--- Context health
-SELECT * FROM v_context_health;
+Run the `/db-health` checks and score them with the same rubric. Do not duplicate
+the SQL here: `.claude/skills/db-health/SKILL.md` is the source of truth, and two
+copies of a health rubric drift apart within a month.
 
--- Stale entries
-SELECT COUNT(*) as stale_60d FROM v_stale_knowledge WHERE days_stale > 60;
+Additionally, check that the skills on disk still match what the protocols
+describe:
 
--- Missing summaries
-SELECT COUNT(*) as missing FROM v_missing_summaries;
-
--- Hot tier
-SELECT COUNT(*) AS hot_tier_rows FROM v_context_bootstrap;
-
--- FTS5 sync check
-SELECT
-  (SELECT COUNT(*) FROM knowledge_fts) as fts_rows,
-  (SELECT COUNT(*) FROM knowledge_entries WHERE is_archived = 0) as active_entries;
-
--- Orphan tags
-SELECT COUNT(*) as orphans FROM tags t
-WHERE NOT EXISTS (SELECT 1 FROM knowledge_entry_tags ket WHERE ket.tag_id = t.id);
+```bash
+ls .claude/skills/*/SKILL.md
 ```
 
-Score the health (same rubric as /db-health).
+For any skill whose referenced tables, scripts or agent names no longer exist,
+that is a finding — a skill that names a missing dependency fails at the moment
+someone actually needs it.
 
-## Phase 2 — Failure Review (last 24h)
+## Phase 2 — Failure review (since the last kaizen)
 
 ```sql
 -- Agent failures
@@ -65,51 +71,59 @@ SELECT json_extract(metadata, '$.agent') AS agent,
        occurred_at
 FROM activity_history
 WHERE action = 'agent_failure'
-  AND occurred_at > datetime('now', '-24 hours')
+  AND occurred_at > COALESCE(
+    (SELECT MAX(occurred_at) FROM activity_history WHERE action = 'kaizen_completed'),
+    datetime('now', '-7 days'))
 ORDER BY occurred_at DESC;
 
--- Failed LLM calls
-SELECT agent_name, model, cost_usd, created_at
+-- Calls logged with no cost: unpriced model, or broken logging
+SELECT agent_name, model, COUNT(*) AS n
 FROM llm_calls
-WHERE cost_usd = 0
-  AND created_at > datetime('now', '-24 hours');
+WHERE (cost_usd IS NULL OR cost_usd = 0)
+  AND created_at > datetime('now', '-7 days')
+GROUP BY agent_name, model;
 ```
 
-For each failure pattern:
-- What went wrong?
-- Is it a recurring issue?
-- What should change? (prompt adjustment, different agent, new skill, etc.)
+For each failure pattern: what went wrong, is it recurring, and what should change
+(prompt adjustment, different agent, new skill, new guardrail).
 
-## Phase 3 — Procedural Memory Review
+## Phase 3 — Procedural memory review
 
 ```sql
--- Patterns with low success rate
-SELECT trigger_pattern, action, success_count, failure_count, success_rate
+-- Patterns with a low success rate
+SELECT id, name, trigger_pattern, success_count, failure_count, success_rate
 FROM procedural_memory
 WHERE success_rate < 0.5 AND (success_count + failure_count) >= 3
 ORDER BY success_rate ASC;
 
--- New patterns since last kaizen
-SELECT trigger_pattern, action, success_rate, created_at
+-- New patterns since the last kaizen
+SELECT id, name, trigger_pattern, created_at
 FROM procedural_memory
 WHERE created_at > COALESCE(
   (SELECT MAX(occurred_at) FROM activity_history WHERE action = 'kaizen_completed'),
-  '2000-01-01'
-);
+  '2000-01-01');
 
--- High-performing patterns worth documenting
-SELECT trigger_pattern, action, success_rate, success_count
+-- Patterns that have earned the reliable bar
+SELECT id, name, action, success_rate, success_count
 FROM procedural_memory
-WHERE success_rate >= 0.8 AND success_count >= 5
+WHERE success_rate >= 0.8 AND success_count >= 3
 ORDER BY success_rate DESC;
+
+-- Loop health: rows that can never be incremented again
+SELECT COUNT(*) AS unreachable_orphans FROM procedural_memory WHERE dedup_key IS NULL;
 ```
 
-## Phase 3.5 — KG Contradiction Detection
+Two numbers matter more than the totals: how many patterns are still stuck at
+`success_count <= 1`, and whether `unreachable_orphans` is growing. The first says
+patterns are captured but never recorded as reused; the second says someone is
+still writing INSERTs by hand.
+
+## Phase 3.5 — Knowledge-graph contradiction detection
 
 ```sql
--- Find entities with duplicate active facts for the same predicate
-SELECT subject, predicate, COUNT(*) as cnt,
-       GROUP_CONCAT(object, ' | ') as conflicting_values
+-- Entities carrying more than one active fact for the same predicate
+SELECT subject, predicate, COUNT(*) AS cnt,
+       GROUP_CONCAT(object, ' | ') AS conflicting_values
 FROM kg_triples
 WHERE valid_to IS NULL
 GROUP BY subject, predicate
@@ -117,88 +131,81 @@ HAVING cnt > 1
 ORDER BY cnt DESC;
 ```
 
-For each contradiction found:
-- Determine which fact is correct (check against source material or ask {{OWNER}})
-- Invalidate the wrong one: `python3 scripts/palace.py kg-invalidate "subject" "predicate" "wrong_object"`
-- If both are valid (e.g., multiple certifications), note it as non-conflicting
+For each contradiction: decide which fact holds (check against source material),
+then `palace.py kg-invalidate` the wrong one. Some predicates legitimately hold
+several values (certifications, languages) — those are not contradictions.
 
-## Phase 3.6 — Memory Tier & Retrieval Health
+In `--auto` mode, do NOT invalidate anything without evidence. List the
+contradictions under "Open questions" and let the next interactive run decide.
+An unattended job that resolves ambiguity by guessing will eventually delete the
+true fact and keep the false one.
+
+## Phase 3.6 — Memory tier and retrieval health
 
 ```bash
-# Tier distribution
 python3 scripts/memory_tiers.py --report
-
-# Run evaluation test set
-python3 -c "
-import json, struct, apsw, sqlite_vec
-from sentence_transformers import SentenceTransformer
-db = apsw.Connection('Database/team.db')
-db.enableloadextension(True)
-sqlite_vec.load(db)
-model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
-evals = json.load(open('scripts/eval_set.json'))
-hits = 0
-for e in evals:
-    vec = model.encode(e['query'])
-    results = db.execute('SELECT d.wing FROM drawers_vec v JOIN drawers d ON d.id = v.drawer_rowid WHERE v.embedding MATCH ? AND k = 5', (struct.pack('768f', *vec),)).fetchall()
-    if e['expect_wing'] in [r[0] for r in results]:
-        hits += 1
-print(f'Retrieval precision@5: {hits}/{len(evals)} ({hits*100/len(evals):.0f}%)')
-"
 ```
 
-Flag if precision drops below 90%.
+If you keep an evaluation set of queries with expected results, run it here and
+flag any drop in retrieval precision. Index health and retrieval health are
+different things: an index can be perfectly in sync and still return the wrong
+drawer for every real question.
 
-## Phase 4 — Infrastructure Check
-
-Verify key system components:
+## Phase 4 — Infrastructure check
 
 ```bash
-# Skills exist and are well-formed
-ls .claude/skills/*/SKILL.md
-
-# Hooks are executable
-ls -la .claude/hooks/*.sh
-
-# Agent definitions exist
-ls .claude/agents/*.md
-
-# Owner Digital Twin files exist
-ls Owner/
-
-# Context pressure script works
-python3 .claude/scripts/context-pressure.py --estimate 1000 --model opus
+ls .claude/skills/*/SKILL.md   # skills exist and are well-formed
+ls -la .claude/hooks/*.sh      # hooks exist and are executable
+ls .claude/agents/*.md         # agent definitions exist
 ```
-
-Check for:
-- Skills that are outdated (referenced procedures changed in CLAUDE.md)
-- Hooks that might need updating
-- Agent definitions that are stale
-- Owner Digital Twin last updated date
 
 ```sql
-SELECT MAX(occurred_at) as last_twin_update FROM activity_history WHERE action = 'twin_update_completed';
+SELECT MAX(occurred_at) AS last_twin_update
+FROM activity_history WHERE action = 'twin_update_completed';
 ```
 
-If twin not updated in 7+ days, flag it.
+Flag the twin if it has not been updated in 7+ days.
 
-## Phase 5 — Propose Improvements
+## Dedup guard (MANDATORY before filing ANY proposal)
 
-Based on Phases 1-4, propose **1 to 3 concrete improvements**. Each must be:
+Whatever you use as a proposal backlog — the `tasks` table, an issue tracker, a
+project board — check for an equivalent open item BEFORE filing a new one.
 
-- **Specific** — "Add a hook to block writes to /tmp" not "improve security"
-- **Actionable** — clear next step (which agent, what change)
-- **Justified** — why this matters (data from phases 1-4)
+Without this guard the backlog fills with the same proposal filed once per run,
+because each run rediscovers the same finding and has no memory that it already
+reported it. A backlog nobody can read is the same as no backlog.
 
-Categories of improvements:
-- New skills for repetitive workflows detected
-- Prompt adjustments for agents that keep failing
-- Schema changes for missing data
-- New hooks for guardrails gaps found
-- Knowledge base hygiene items
-- Process optimizations
+- Search with 2-3 **distinctive** keywords from the proposal (a script name, a
+  table name, a skill name) — not generic words like "update" or "fix".
+- **Match found** → do not file. If there is genuinely new evidence, add it to the
+  existing item and reference it in the report as "already open as #N".
+- **Equivalent item already rejected or closed** → do not reopen. Mention it only
+  if the new evidence is materially different.
+- **No match** → file it.
 
-**Present to {{OWNER}}. Never auto-implement.** Let him prioritize.
+## Phase 5 — Propose improvements
+
+From Phases 1-4, propose **1 to 3 concrete improvements**. Each must be:
+
+- **Specific** — "add a hook that blocks writes to /tmp", not "improve security"
+- **Actionable** — a clear next step: which file, which agent, what change
+- **Justified** — the evidence from Phases 1-4 that prompted it
+
+Categories: new skills for repetitive workflows, prompt adjustments for agents
+that keep failing, schema changes for data you keep wishing you had, new hooks for
+guardrail gaps, memory hygiene, process simplification.
+
+Three is a cap, not a quota. "Nothing worth proposing this week" is a valid
+outcome and a healthier one than three inventions.
+
+**Present to the user. Never auto-implement.**
+
+## Failure isolation
+
+If any phase fails (a delegated agent errors, a network call is rate-limited), do
+NOT abort the run. Record the failure in that section of the report and continue
+to logging and output. A review that only completes when every phase succeeds
+stops running exactly when the system is least healthy.
 
 ## Logging (MANDATORY)
 
@@ -208,10 +215,10 @@ VALUES (
   1,
   'kaizen_completed',
   'system',
-  'Kaizen daily review: health score X/100, Y failures reviewed, Z improvements proposed',
+  'Kaizen review: health score X/100, Y failures reviewed, Z improvements proposed',
   json_object(
     'health_score', ?,
-    'failures_24h', ?,
+    'failures', ?,
     'improvements_proposed', ?,
     'twin_days_stale', ?,
     'procedural_patterns', ?
@@ -220,31 +227,45 @@ VALUES (
 );
 ```
 
-## Output Format
+## Sentinel touch (MANDATORY at the end of a run)
+
+In BOTH modes, as the very last step:
+
+```bash
+mkdir -p .kaizen && touch ".kaizen/$(date +%Y-%m-%d).done"
+```
+
+This makes the run idempotent: if the scheduler fires after a manual `/kaizen`,
+the wrapper sees the sentinel and skips.
+
+## Output format
 
 ```
 ## Kaizen Report — {date}
 
 ### System Health: XX/100
 - [OK/WARN] Integrity
-- [OK/WARN] Stale entries: N (>60d)
-- [OK/WARN] Missing summaries: N
-- [OK/WARN] Hot tier: N rows
-- [OK/WARN] FTS5 sync
-- [OK/WARN] Orphan tags: N
+- [OK/WARN] Index sync
+- [OK/WARN] Backlog: N pending
+- [OK/WARN] Cost telemetry
 
-### Failures (24h)
+### Failures (since last run)
 - {count} failures, {patterns found}
 - Most affected: {agent_name} ({N} failures)
 
 ### Procedural Memory
-- {N} total patterns, {N} reliable (>80%), {N} unreliable (<50%)
-- New since last kaizen: {N}
+- {N} total patterns, {N} reliable, {N} never reused, {N} orphans
 
 ### Proposed Improvements
 1. **{title}** — {description}. {justification}.
-2. **{title}** — {description}. {justification}.
 
 ### Digital Twin
 - Last updated: {date} ({N} days ago)
+
+### Open questions
+- {question} — assumed default: {default}
 ```
+
+In `--auto` mode, write this report to a dated file rather than to the session,
+and leave delivery (email, chat, wherever it needs to go) to the wrapper. The
+skill's only job is to produce a correct report at a predictable path.

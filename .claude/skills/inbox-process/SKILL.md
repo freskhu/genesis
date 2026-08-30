@@ -26,7 +26,7 @@ Compare: any file in the directory NOT in the processed list is new.
 ## Step 2 -- Flag to {{OWNER}}
 
 For each unprocessed file, present to {{OWNER}} with options:
-- **Index in knowledge base** -- extract content, categorize, store in knowledge_entries
+- **Index in knowledge base** -- extract content, pick a wing/room/hall, store via `palace.py add`
 - **Assign to team member** -- delegate to a specialist for analysis/action
 - **File for reference** -- mark as processed without further action
 - **Ignore** -- skip this file
@@ -39,13 +39,16 @@ Based on {{OWNER}}'s choice:
 
 ### If indexing in knowledge base:
 1. Read the file content
-2. Determine category: user, feedback, project, reference, strategy, technical
-3. Delegate to Lena to insert:
-```sql
-INSERT INTO knowledge_entries (title, content, category, summary, added_by)
-VALUES (?, ?, ?, ?, 1);
+2. Pick the most specific wing, room and hall (see the taxonomy in CLAUDE.md) —
+   never dump into `archive` because nothing else fit
+3. Search first, so you do not file a second copy of something already there:
+```bash
+python3 scripts/palace.py search "<key phrase from the file>" --mode keyword
 ```
-4. Add relevant tags
+4. File it:
+```bash
+python3 scripts/palace.py add --wing <wing> --room <room> --hall <hall> --file "Team Inbox/<filename>"
+```
 
 ### If assigning to team member:
 1. Identify the right team member

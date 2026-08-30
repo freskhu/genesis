@@ -15,17 +15,18 @@ allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
 
 ## Step 1 — Gather Signal
 
-Check recent knowledge entries for user-relevant info:
+Check MemPalace for recent user-relevant signal:
+
+```bash
+python3 scripts/palace.py search "<owner> preferences feedback" --wing owner --limit 10
+python3 scripts/palace.py search "<owner>" --hall hall_preferences --limit 10
+```
+
+Cross-check against the last run — only signal newer than this date matters:
+
 ```sql
 PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;
-SELECT id, title, content, category, created_at FROM knowledge_entries
-WHERE category IN ('user', 'feedback')
-  AND is_archived = 0
-  AND updated_at > COALESCE(
-    (SELECT MAX(occurred_at) FROM activity_history WHERE action = 'twin_update_completed'),
-    '2000-01-01'
-  )
-ORDER BY created_at DESC;
+SELECT MAX(occurred_at) FROM activity_history WHERE action = 'twin_update_completed';
 ```
 
 Also consider: what did the owner reveal during this session?
@@ -90,6 +91,6 @@ VALUES (
 ## Anti-Patterns
 
 - Don't add trivial info ("the owner asked about ski boots" is NOT a twin update)
-- Don't duplicate what's already in knowledge_entries — the twin is a curated summary, not a log
+- Don't duplicate what's already in MemPalace — the twin is a curated summary, not a log
 - Don't add speculative info — only confirmed facts or explicit preferences
 - Don't rewrite entire files — surgical edits only

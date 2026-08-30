@@ -32,6 +32,14 @@ Delegate to Sarah (HR Manager) with Maria's research brief:
   1. Agent definition in `.claude/agents/<name>.md`
   2. Profile in `Team/<name>.md`
   3. Updates `Team/roster.md`
+- **Sarah classifies the agent as text-producing or code-only** (default: text-producing — anything emitting human-readable prose: emails, reports, briefs, slide content, posts, analyses).
+- **If text-producing, Sarah APPENDS the canonical voice-rules block:**
+  ```bash
+  cat .claude/rules/_agent-voice-block.md >> .claude/agents/<name>.md
+  ```
+  Verify with `grep -q "Voice rules (mandatory" .claude/agents/<name>.md`. Skip the
+  whole step if you have not written a banlist yet — see `.claude/rules/`.
+- Code-only agents (pure infra, ops or code roles with no human-facing prose) skip the voice block.
 
 ## Step 4 -- Lena Syncs DB
 

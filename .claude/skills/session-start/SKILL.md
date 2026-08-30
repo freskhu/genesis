@@ -1,96 +1,29 @@
 ---
 name: session-start
-description: "Run the mandatory 3-step session start protocol: inbox check, pending tasks, session tracking + dream check"
+description: "Run the mandatory Session Start Protocol (memory-hot, inbox, pending tasks, kaizen backlog, dream check, session tracking)"
 user-invocable: true
-allowed-tools: ["Read", "Bash", "Glob", "Grep"]
+allowed-tools: Read Bash Glob Grep
 ---
 
-# Session Start Protocol
+# Session Start Protocol — wrapper
 
-Run all 3 steps in order. None can be skipped.
+This skill is a thin wrapper. The canonical, single source of truth is:
 
-## Step 1 -- Inbox Check
+**`.claude/protocols/session-start.md`**
 
-1. List files in `Team Inbox/`:
-```bash
-ls -la "Team Inbox/"
-```
+Read that file and execute Steps 0–5 in order:
 
-2. Check which files are already processed:
-```sql
-SELECT filename, processed_at FROM processed_inbox_files;
-```
+0. Regenerate and read `.claude/memory-hot.md`
+1. Inbox check (`Team Inbox/` against `processed_inbox_files`)
+2. Pending tasks (`SELECT * FROM v_open_tasks;`)
+3. Kaizen backlog surface (only when 3+ `[Kaizen]` proposals have been pending >48h)
+4. Dream check (run `/dream` if due)
+5. Log `session_start` in `activity_history`
 
-3. If any file in `Team Inbox/` is NOT in the processed list, flag it to {{OWNER}}:
-   - Show the filename and suggest what to do (index in knowledge base, assign to team member, file for reference)
-   - Wait for {{OWNER}}'s decision before processing
+Invoke `/session-start` manually at the start of each session. There is no
+auto-firing hook: an earlier `UserPromptSubmit` gate was removed because it fired
+in every Claude Code window opened anywhere inside the project tree and broke
+unrelated ones. The protocol file explains the failure in full.
 
-4. After processing (with {{OWNER}}'s approval), mark as processed via Lena:
-```sql
-INSERT INTO processed_inbox_files (filename, processed_at) VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
-```
-
-## Step 2 -- Pending Tasks Check
-
-1. Query open tasks:
-```sql
-SELECT * FROM v_open_tasks;
-```
-
-2. If there are open tasks (pending, in_progress, or blocked):
-   - Present to {{OWNER}}: "Tens X tarefas pendentes: [list]. Queres avancar com alguma?"
-   - Let {{OWNER}} decide -- don't assume
-
-3. Check stale knowledge:
-```sql
-SELECT count(*) as stale_count FROM v_stale_knowledge WHERE days_stale > 60;
-```
-   - If stale_count > 5, flag to {{OWNER}}
-
-## Step 3 -- Session Tracking & Dream Check
-
-1. Log session start:
-```sql
-INSERT INTO activity_history (actor_id, action, entity_type, summary, occurred_at)
-VALUES (1, 'session_start', 'system', 'Session started', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
-```
-
-2. Check if dream cycle is due:
-```sql
-SELECT COUNT(*) AS sessions_since_dream FROM activity_history
-WHERE action = 'session_start' AND occurred_at > (
-  SELECT COALESCE(MAX(occurred_at), '2000-01-01') FROM activity_history WHERE action = 'auto_dream_completed'
-);
-```
-
-3. Check time since last dream:
-```sql
-SELECT COALESCE(MAX(occurred_at), '2000-01-01') AS last_dream FROM activity_history WHERE action = 'auto_dream_completed';
-```
-
-4. If `sessions_since_dream >= 5` OR last dream > 24h ago:
-   - Delegate to your Knowledge Architect: "Knowledge Architect, corre o auto-dream protocol."
-   - Use `/dream` skill
-
-5. If neither condition met, proceed normally.
-
-## Step 4 -- Kaizen Check (Daily Continuous Improvement)
-
-Check if kaizen already ran today:
-```sql
-SELECT COUNT(*) as ran_today FROM activity_history
-WHERE action = 'kaizen_completed'
-  AND occurred_at > datetime('now', 'start of day');
-```
-
-If `ran_today = 0`:
-- Run `/kaizen` — daily system health + failure review + improvement proposals
-- Present the kaizen report to {{OWNER}}
-
-If already ran today, skip.
-
-## Session End Reminder
-
-At the end of every session, the orchestrator MUST:
-1. Run `/twin-update` — check if new info about the owner surfaced and update Owner Digital Twin
-2. This is not optional. The twin only stays useful if it's kept current.
+Do NOT duplicate or fork the step logic here — edit the protocol file instead.
+Two copies of a protocol drift, and the copy the agent happens to read wins.
