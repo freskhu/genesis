@@ -36,6 +36,24 @@ MEMORY_HOT="$SCRIPT_DIR/.claude/memory-hot.md"
 # pipe closes cleanly).
 INPUT=$(cat 2>/dev/null || true)
 
+# Subagent guard: Stop hooks also fire for subagent sessions (Task tool). The
+# Session End Protocol belongs to the orchestrator, not to a subagent — blocking
+# a subagent's Stop displaces its final report, so the orchestrator receives a
+# truncated relay instead of the agent's answer. Detect the subagent transcript
+# path and let Stop through. (If your runtime exposes a SubagentStop event, use
+# that to separate the two cases instead of pattern-matching a path.)
+SUBAGENT_TP=$(printf '%s' "$INPUT" | python3 -c "import json,sys
+try:
+    print(json.load(sys.stdin).get('transcript_path',''))
+except Exception:
+    print('')" 2>/dev/null)
+case "$SUBAGENT_TP" in
+    */subagents/agent-*)
+        echo '{}'
+        exit 0
+        ;;
+esac
+
 # Respect stop_hook_active to avoid recursion when our own block re-triggers Stop
 STOP_ACTIVE=$(printf '%s' "$INPUT" | python3 -c "import json,sys
 try:

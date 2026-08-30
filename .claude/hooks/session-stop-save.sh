@@ -8,6 +8,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 # Read stdin (Claude Code hook JSON)
 INPUT=$(cat)
 
+# Subagent guard: Stop hooks also fire for subagent sessions (Task tool), where
+# every tool result counts as a role=user message — the 15-message threshold is
+# hit almost immediately and the block displaces the subagent's final report
+# (the "relay truncation" pattern). The session-end/checkpoint protocol belongs
+# to the orchestrator's main session only.
+SUBAGENT_TP=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('transcript_path',''))" 2>/dev/null)
+case "$SUBAGENT_TP" in
+    */subagents/agent-*)
+        echo '{}'
+        exit 0
+        ;;
+esac
+
 # Check if stop hook is already active (prevent infinite loop)
 STOP_ACTIVE=$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('stop_hook_active','false'))" 2>/dev/null)
 if [ "$STOP_ACTIVE" = "true" ] || [ "$STOP_ACTIVE" = "True" ]; then
@@ -54,10 +67,19 @@ SINCE_LAST=$((EXCHANGE_COUNT - LAST_SAVE))
 if [ "$SINCE_LAST" -ge 15 ] && [ "$EXCHANGE_COUNT" -gt 0 ]; then
     echo "$EXCHANGE_COUNT" > "$LAST_SAVE_FILE"
 
-    # Regenerate memory-hot.md in background
-    cd "$SCRIPT_DIR" && python3 scripts/generate_memory_hot.py &>/dev/null &
-
-    echo '{"decision": "block", "reason": "AUTO-SAVE checkpoint. Save key topics and decisions from this session to team.db using: python3 scripts/palace.py add --wing ai_team --room decisions --hall hall_facts --content \"...\". Then run: python3 scripts/generate_memory_hot.py. Continue after saving."}'
+    # Regenerate memory-hot.md in the FOREGROUND and capture failures. A silent
+    # regen failure is how broken palace deps go unnoticed for days: the old
+    # background "&>/dev/null &" threw the error away. Persistence steps must
+    # fail LOUD, unlike safety gates, which fail open.
+    REGEN_ERR=$(cd "$SCRIPT_DIR" && python3 scripts/generate_memory_hot.py 2>&1 >/dev/null)
+    REGEN_RC=$?
+    BASE_REASON='AUTO-SAVE checkpoint. Save key topics and decisions from this session to team.db using: python3 scripts/palace.py add --wing ai_team --room decisions --hall hall_facts --content "...". Then run: python3 scripts/generate_memory_hot.py. Continue after saving.'
+    if [ "$REGEN_RC" -ne 0 ]; then
+        WARN="WARNING: generate_memory_hot.py FAILED (rc=$REGEN_RC: $(echo "$REGEN_ERR" | tail -1 | head -c 200)). Memory writes may be down - check the Python deps in requirements.txt BEFORE continuing. "
+    else
+        WARN=""
+    fi
+    REASON="$WARN$BASE_REASON" python3 -c "import json,os; print(json.dumps({'decision':'block','reason':os.environ['REASON']}))"
 else
     echo '{}'
 fi
