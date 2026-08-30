@@ -275,7 +275,7 @@ def cmd_proc_record(args):
     """Record OR increment a procedural pattern (closes the learning loop).
 
     One deterministic call replaces the old hand-crafted INSERT-vs-UPDATE choice
-    that always took the INSERT branch (kaizen #77). On first sight of a pattern
+    that always took the INSERT branch. On first sight of a pattern
     it inserts with the given counter; on every repeat it increments that counter
     and refreshes last_used_at — success_count finally climbs past 1.
     """
