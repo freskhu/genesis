@@ -13,6 +13,17 @@
 
 set -u
 
+# Mirror of the guard in .claude/hooks/voice-check.sh: without a banlist there is
+# nothing to check against, and running the shipped example's Portuguese detector
+# on someone else's text would emit confident nonsense. The hook exits silently
+# because it is a soft alert; this is a hard gate, so it reports the reason.
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)" || REPO_ROOT=""
+if [ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/.claude/rules/voice-banlist.md" ]; then
+  echo "VERDICT=error reason=no-banlist path=.claude/rules/voice-banlist.md"
+  echo "Copy .claude/rules/voice-banlist.example.md and adapt it to your own voice and language first."
+  exit 2
+fi
+
 file_path="${1:-}"
 
 if [ -z "$file_path" ]; then

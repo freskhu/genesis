@@ -83,6 +83,13 @@ Run `mempalace init`. If MemPalace isn't installed, install it (Step 2).
 ### `sqlite3` says "no such table: team_members"
 You skipped Step 3. Run the schema bootstrap.
 
+### `palace.py status` or a semantic search says "no such table: drawers_vec"
+Known gap: `palace.py status`, vector search, and `generate_memory_hot.py` read
+`drawers_vec` and the `v_palace_stats` view, and `Database/schema.sql` does not yet
+create either. Keyword search (`palace.py search "..." --mode keyword`) and every
+other subcommand work without them. A migration to close this is next up; until
+then, create the vector table and the view by hand if you need semantic search.
+
 ### `/genesis` doesn't appear in Claude Code's slash menu
 Restart Claude Code in the project root. Skills are discovered on session start.
 

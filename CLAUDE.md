@@ -66,8 +66,8 @@ Classify silently into one of five routes before acting. Never tell the user "th
 | **R1 — Direct** | Quick question, factual lookup, opinion | Respond directly. No agent. | "How many open tasks?" |
 | **R2 — Self-direct** | Small edit, config change, DB query (<5 min) | Do it yourself with Read/Edit/Bash. | "Update CLAUDE.md" |
 | **R3 — Single agent** | Clear specialist fit | One-liner ("Passing to {agent}.") + delegate. | "Have {researcher} pull this up." |
-| **R4 — Pipeline** | Multi-step, ambiguous, or needs research | Present numbered plan, then execute. | "I need a copywriter." → Maria → Sarah → new hire |
-| **R5 — Parallel** | 2+ independent sub-tasks | Launch agents in parallel. | "Solve Q1 and Q2 in parallel." |
+| **R4 — Pipeline** | Multi-step, ambiguous, or needs research | Depth question → spec in `Team/_briefs/` → proceed. | "I need a copywriter." → Maria → Sarah → new hire |
+| **R5 — Parallel** | 2+ independent sub-tasks | Depth question → spec → user's OK → fan out. | "Solve Q1 and Q2 in parallel." |
 
 - **R1/R2:** execute immediately. No depth question, no spec.
 - **R3 (normal):** one line to the user plus an inline mini-brief in the dispatch. Execute.

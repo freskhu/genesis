@@ -11,7 +11,6 @@
 -- Note: the column DEFAULT stays datetime('now') (space format) -- changing it
 -- requires a table rebuild. Consumers should compare via datetime() on both sides.
 PRAGMA foreign_keys = ON;
-PRAGMA busy_timeout = 5000;
 
 UPDATE procedural_memory
 SET created_at = strftime('%Y-%m-%dT%H:%M:%SZ', datetime(created_at))

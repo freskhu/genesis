@@ -50,14 +50,14 @@ a finding; "line 82 repeats line 81 verbatim" is.
 1. **Naming** — a predictable, sortable filename: date, subject, descriptor.
 2. **Metadata** — title, author, date present in whatever the format supports
    (YAML front matter, document properties, a title slide).
-3. **No adjacent duplicate paragraphs** — the classic generation artefact:
+3. **Repeated adjacent paragraphs** — the classic generation artefact:
    ```bash
    awk 'NR>1 && length($0)>10 && $0==prev {print NR": "$0} {prev=$0}' <FILE>
    ```
 4. **Figure flow** — every image has its own caption; no bare image immediately
    after a heading; the rhythm is heading → text → figure → text.
-5. **Convention consistency** — callouts, symbols and colours applied uniformly,
-   or uniformly absent. Half-applied is worse than absent.
+5. **Convention consistency** — callouts, symbols and colours applied
+   consistently, or not at all. Half-applied is worse than absent.
 6. **Language consistency** — one language throughout, correct diacritics, one
    font. A document that drops its accent marks halfway through was written in
    two sittings and reads like it.
@@ -88,7 +88,7 @@ Type: <type>
 
 [1] Naming          PASS/FAIL
 [2] Metadata        PASS/FAIL
-[3] No duplicates   PASS/FAIL
+[3] Repeated paras  PASS/FAIL
 [4] Figure flow     PASS/FAIL
 [5] Conventions     PASS/FAIL
 [6] Language        PASS/FAIL
