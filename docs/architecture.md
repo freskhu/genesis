@@ -8,15 +8,81 @@ The orchestrator is one entity. It is the single point of contact for the user, 
 
 It does **not** execute work. It routes, plans, delegates, logs. Every conversation flows through it.
 
-When the user types a request, the orchestrator silently classifies it into one of five routes:
+When the user types a request, the orchestrator silently classifies it into one of
+five routes:
 
-- **R1 (Direct):** Quick answer, no agent.
-- **R2 (Self-direct):** Small edit, the orchestrator does it itself with Read/Edit/Bash.
-- **R3 (Single agent):** Clear specialist fit — delegate.
-- **R4 (Pipeline):** Multi-step or research-heavy — present plan, then execute.
-- **R5 (Parallel):** Independent sub-tasks — fan out.
+- **R1 (Direct):** Quick answer, no agent. Execute immediately.
+- **R2 (Self-direct):** Small edit, the orchestrator does it itself with Read/Edit/Bash. Execute immediately.
+- **R3 (Single agent):** Clear specialist fit — one line to the user, mini-brief in the dispatch, delegate. No plan ritual. If the task is *sensitive* — it touches money, reaches an external recipient, alters the system's own configuration, or is irreversible — ask the depth question first and run the quality gate before delivery.
+- **R4 (Pipeline):** Multi-step, ambiguous, or research-heavy — ask the depth question, write a spec, then proceed. Show the spec only for high-risk or externally-bound work.
+- **R5 (Parallel):** Independent sub-tasks — ask the depth question, write a spec, get an OK, then fan out.
 
 This routing is silent. The user never hears "this is route 3."
+
+When torn between R3 and R4, pick R3: less overhead. When unsure whether something
+is sensitive, treat it as sensitive — that costs one line.
+
+## The operating model — digital twin
+
+The orchestrator works as the user's digital twin and quality buffer. The user
+sees finished, verified work; the iteration with the team happens on the
+orchestrator's side. The user is not the one chasing agents or catching errors.
+
+The internal loop, invisible to the user:
+
+1. **Ask depth first.** On any substantial request, the orchestrator asks up front:
+   go deep and interrogate the request, or proceed directly? The *user* chooses the
+   clarification depth. The orchestrator does not decide it unilaterally, and does
+   not guess in silence. Trivial R1/R2 work skips this.
+2. **Spec.** For substantial or multi-agent work, write a spec file in
+   `Team/_briefs/` from `_TEMPLATE.md`: objective, acceptance criteria, scope in and
+   out, pinned inputs, constraints, decisions, open questions, team and sequence.
+   The agents read it while working. Its acceptance criteria are the verification
+   checklist in step 4 — the same list, deliberately. A single clear task gets an
+   inline mini-brief instead; trivial work gets nothing.
+3. **Agents save their own work.** The agent writes its deliverable to
+   `Owners Inbox/` and returns a path plus its decisions, not the document body.
+4. **Verify.** Does the file exist? Does it match the brief? Are the facts confirmed
+   against source? Did anything get invented?
+5. **Critique and iterate.** Request changes from the agent, or route through the
+   quality gate. Repeat until the definition of done is met.
+6. **Deliver once, when done.** With a cover note: what it is, what was decided,
+   what had to be assumed.
+
+**Subjective work is the exception.** For anything where the answer is taste —
+voice, visual direction, positioning — do not iterate in the dark. Send a one-line
+direction check early ("going this way, confirm?"), get the direction agreed, then
+run autonomously to the end. A confirmed direction up front beats guessing someone's
+taste in a private loop.
+
+**The honest boundary.** This model guarantees *verified, complete, correct* —
+which are objective properties. It does not guarantee the user will love it. Taste
+is calibrated at the depth question and the early direction check, not by infinite
+internal rework.
+
+The user's visibility points are exactly three: the depth question (one line), the
+spec approval (only for large or sensitive work), and the early direction check
+(only for subjective work). Everything else they see finished.
+
+## The quality gate — asymmetric by design
+
+Not everything deserves the same review. The cost of voice or brand drift in
+owner-voice, co-authored, and published material is high and hard to reverse once
+it has left the building. The cost of an extra review pass on internal code is
+delivery friction with little upside.
+
+So the mandatory second pass fires for exactly three classes:
+
+- **Class A** — owner-voice, external commercial (client and supplier email, quotations)
+- **Class B** — co-authored or academic prose the user will sign
+- **Class C** — branded, published content
+
+Everything else gets one optional line in the cover note ("want a QA pass before
+this goes out?") and proceeds if the user declines or does not answer.
+
+A blanket "review everything" rule reads as rigour and behaves as a tax: it slows
+every delivery equally, so people route around it, and it stops protecting the
+cases that needed it. Full protocol in `.claude/protocols/quality-gate.md`.
 
 ## Layer 2 — Agents (the processes)
 
@@ -62,7 +128,35 @@ Every so often (typically nightly), `/dream` runs:
 3. **Consolidate** — strengthen what's been accessed.
 4. **Prune** — demote what's stale.
 
-The output is a refreshed memory state with hot/warm/cold tiers. Hot tier loads first into context.
+The output is a refreshed memory state with hot/warm/cold tiers. The hot tier loads
+first into context — which makes it the one number worth watching, because anything
+hot is paid for on every single session.
+
+`/dream` never deletes on its own initiative. It proposes prune candidates and
+waits for a human OK. A maintenance job with delete permission and no human in the
+loop is one bad heuristic away from erasing the memory it exists to protect.
+
+### The lens/citable boundary
+
+Owner and identity content carries a confidentiality classification. This is a
+confidentiality boundary, not a context-budget concern: it governs what may leave
+the team and reach a third party.
+
+- **lens** — informs an agent's reasoning ONLY. Private framing, strategy, personal
+  context, financial posture, negotiation stance. It must never appear verbatim, or
+  in a disclosing paraphrase, in anything sent to a client, a supplier, a public
+  audience, or an examiner. Use it to think; do not quote it.
+- **citable** — cleared for external use.
+
+**Default is lens.** A drawer is citable only when its content's first line is the
+literal sentinel `CITABLE:`. No schema change is involved — the sentinel is read at
+retrieval time, and `palace.py search` prefixes `[LENS]` on results that lack it, so
+the consuming agent never has to infer the classification. Promotion to citable is a
+deliberate, per-drawer act, never a bulk operation.
+
+Safe-by-default matters here because the failure is asymmetric: over-classifying
+costs a sentence the agent could have used, under-classifying puts private context
+in someone else's inbox.
 
 ## Layer 4 — Filesystem (I/O)
 
@@ -126,3 +220,13 @@ User: receives `Owners Inbox/Suppliers-PT/2026-05-08-shortlist.md`
 ```
 
 That's it. No black boxes, no magic. Five layers, each doing one thing well.
+
+---
+
+## What experience has changed
+
+`docs/lessons-2026-08.md` collects seven findings from the first end-to-end audit of
+a live instance: hooks versus native runtime events, database backup, `maxTurns` by
+tier, the contract between memory layers, identifiers that encode the wrong measure,
+probes with no reach, and classifiers wired to an actuator. They are the reasons
+several of the design choices above are the way they are.

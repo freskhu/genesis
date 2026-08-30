@@ -148,8 +148,25 @@ This is **v0.1** — the public seed. Things that work:
 - ☑ MemPalace memory (vector + KG)
 - ☑ Hire pipeline (Maria → Sarah → Lena)
 - ☑ Inbox-driven workflows
-- ☑ Skills: dream, kaizen, db-health, weekly-review, quarterly-review, handoff
-- ☑ Hooks: SQL guardrails, session-stop auto-save
+- ☑ Skills: dream, kaizen, db-health, quality-gate, voice-gate, weekly-review, quarterly-review, handoff
+- ☑ Hooks: SQL guardrails, session-stop auto-save, delegation gate, voice check
+
+### What changed since v0.1
+
+The seed has been running daily in a live instance since. Most of what came back is
+not new features but corrections: the delegation gate now blocks until a reflective
+artifact exists instead of politely reminding; the SQL guardrail stopped firing on
+its own trigger words when they appear inside a data payload; `Stop` hooks no longer
+fire on subagents, where they were displacing the agent's final report; memory
+regeneration fails loudly instead of silently in the background. On top of that:
+the **digital twin** operating model (ask the depth question, write a spec, verify
+against its own acceptance criteria, deliver once), an **asymmetric quality gate**
+that is mandatory for three classes of deliverable and optional for everything else,
+a **voice gate** with an example banlist, and four database migrations that make
+cost and procedural memory honest. The first end-to-end audit of that instance
+produced seven lessons that generalise — hooks versus native events, backups,
+`maxTurns`, memory-layer contracts, identifiers, probe reach, and classifiers wired
+to actuators — written up in [`docs/lessons-2026-08.md`](docs/lessons-2026-08.md).
 
 Coming next:
 
