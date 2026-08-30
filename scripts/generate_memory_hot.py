@@ -45,17 +45,33 @@ def connect():
     return db
 
 
+# Predicates worth carrying into the session briefing. The rest of the graph
+# (skills, hobbies, one-offs) stays reachable through `palace.py kg-query`.
+# The briefing is a curation: dumping every owner triple turned out to be mostly
+# noise, and noise in the hot tier costs context on every single session.
+IDENTITY_PREDICATES = (
+    "role_is", "certified_as", "has_certification",
+    "worked_at", "co_founded", "founding", "manages",
+    "studies_in_track", "currently_studying",
+    "is seeking", "plans_to_acquire", "located_in",
+)
+
+
 def section_identity(db):
-    """Owner identity from KG."""
+    """Owner identity from KG — whitelisted predicates, de-duplicated, capped."""
     lines = [f"## Owner — {OWNER_NAME}"]
-    facts = db.execute("""
-        SELECT subject, predicate, object FROM kg_triples
-        WHERE (subject = 'owner' OR subject = '{{OWNER}}') AND valid_to IS NULL
+    placeholders = ",".join("?" * len(IDENTITY_PREDICATES))
+    facts = db.execute(f"""
+        SELECT DISTINCT predicate, object FROM kg_triples
+        WHERE (subject = 'owner' OR subject = '{{{{OWNER}}}}') AND valid_to IS NULL
+          AND predicate IN ({placeholders})
         ORDER BY predicate
-    """).fetchall()
+        LIMIT 25
+    """, IDENTITY_PREDICATES).fetchall()
     if facts:
-        for s, p, o in facts:
-            lines.append(f"- {p.replace('_', ' ')}: {o.replace('_', ' ')}")
+        for pred, obj in facts:
+            lines.append(f"- {pred.replace('_', ' ')}: {obj.replace('_', ' ')}")
+    lines.append("- (full profile: `palace.py kg-query <owner>`)")
     return "\n".join(lines)
 
 
@@ -207,7 +223,11 @@ def section_procedural(db):
 
 
 def section_inbox(db):
-    """Unprocessed inbox files."""
+    """Unprocessed inbox files.
+
+    Folders whose only remaining content is `_processed/` or dotfiles are not
+    pending work, so they are skipped instead of nagging on every session start.
+    """
     lines = ["## Inbox Não Processado"]
     try:
         import os
@@ -217,7 +237,17 @@ def section_inbox(db):
             processed = set()
             for row in db.execute("SELECT filename FROM processed_inbox_files"):
                 processed.add(row[0])
-            unprocessed = [f for f in all_files if f not in processed and not f.startswith(".")]
+            unprocessed = []
+            for f in all_files:
+                if f in processed or f.startswith(".") or f == "_processed":
+                    continue
+                full = os.path.join(inbox_path, f)
+                if os.path.isdir(full):
+                    contents = [c for c in os.listdir(full)
+                                if c != "_processed" and not c.startswith(".")]
+                    if not contents:
+                        continue
+                unprocessed.append(f)
             if unprocessed:
                 for f in unprocessed[:5]:
                     lines.append(f"- **NOVO:** {f}")

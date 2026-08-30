@@ -43,6 +43,13 @@ EMBED_MODEL = "paraphrase-multilingual-mpnet-base-v2"
 EMBED_DIMS = 768
 RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
+# Owner-sensitive scope for the lens/citable boundary. Anything filed under one
+# of these wings or rooms is treated as `lens` (think with it, never quote it
+# to a third party) unless its content opens with the `CITABLE:` sentinel.
+# Rename OWNER_WINGS to match the wing you use for the owner's own profile.
+OWNER_WINGS = ("owner",)
+OWNER_ROOMS = ("identity", "owner", "preferences")
+
 _model = None
 _reranker = None
 
@@ -126,8 +133,15 @@ def cmd_search(args):
             })
 
     if mode in ("keyword", "hybrid"):
+        # FTS5 treats `?`, `,`, `@` and hyphens as query syntax, so a raw
+        # natural-language query blows up MATCH with apsw.SQLError. Quoting each
+        # token preserves the implicit AND semantics and makes MATCH immune to
+        # punctuation. No tokens -> skip the FTS leg entirely.
+        import re as _re
+        _fts_tokens = _re.findall(r"\w+", query, flags=_re.UNICODE)
+        fts_query = " ".join(f'"{t}"' for t in _fts_tokens)
         where_extra = ""
-        fts_params = [query]
+        fts_params = [fts_query]
         if args.wing:
             where_extra += " AND d.wing = ?"
             fts_params.append(args.wing)
@@ -148,7 +162,7 @@ def cmd_search(args):
             LIMIT ?
         """
 
-        for row in db.execute(fts_sql, fts_params):
+        for row in (db.execute(fts_sql, fts_params) if fts_query else []):
             # Deduplicate with vector results
             if not any(r["id"] == row[0] for r in results):
                 results.append({
@@ -180,7 +194,20 @@ def cmd_search(args):
         src = "V" if r["source"] == "vector" else "K"
         rscore = f" rerank={r['rerank_score']:.2f}" if "rerank_score" in r else ""
         dist = f"dist={r['distance']:.3f}" if isinstance(r['distance'], float) else f"rank={r['distance']}"
-        print(f"\n  [{src}] {r['wing']}/{r['room']}/{r['hall']} ({r['tier']}) {dist}{rscore}")
+        # lens/citable confidentiality (see CLAUDE.md, "Owner-Profile
+        # Confidentiality Boundary"): owner-sensitive content is lens by default
+        # and only citable when its content opens with the literal `CITABLE:`
+        # sentinel. The flag warns the consuming agent at retrieval time, so it
+        # never has to infer the classification from the wing name alone.
+        # Configure which wings/rooms are owner-sensitive via the constants above.
+        lens = ""
+        if r["wing"] in OWNER_WINGS or r["room"] in OWNER_ROOMS:
+            head = db.execute(
+                "SELECT substr(ltrim(content), 1, 8) FROM drawers WHERE id = ?",
+                (r["id"],)).fetchone()
+            if not (head and head[0] and head[0].startswith("CITABLE:")):
+                lens = "[LENS] "
+        print(f"\n  {lens}[{src}] {r['wing']}/{r['room']}/{r['hall']} ({r['tier']}) {dist}{rscore}")
         preview = r['preview'].replace('\n', ' ').strip()[:200]
         print(f"      {preview}")
 
@@ -229,6 +256,73 @@ def cmd_add(args):
                (rowid, serialize_f32(vec)))
 
     print(f"Added: {drawer_id} → {wing}/{room}/{hall} ({tier})")
+
+
+# ============================================================
+# PROCEDURAL MEMORY (institutional learning loop)
+# ============================================================
+
+def _proc_dedup_key(trigger_pattern: str) -> str:
+    """Stable identity for a procedural pattern: lowercased, whitespace-collapsed.
+
+    MUST match the normalisation in migration 013 so the CLI and any SQL-side
+    backfill agree on what counts as 'the same pattern'.
+    """
+    return " ".join(trigger_pattern.lower().split())
+
+
+def cmd_proc_record(args):
+    """Record OR increment a procedural pattern (closes the learning loop).
+
+    One deterministic call replaces the old hand-crafted INSERT-vs-UPDATE choice
+    that always took the INSERT branch (kaizen #77). On first sight of a pattern
+    it inserts with the given counter; on every repeat it increments that counter
+    and refreshes last_used_at — success_count finally climbs past 1.
+    """
+    db = connect()
+    trigger = args.trigger
+    key = _proc_dedup_key(trigger)
+    if not key:
+        print("ERROR: --trigger must be a non-empty pattern")
+        sys.exit(1)
+
+    outcome = args.outcome  # "success" | "failure"
+    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    existing = db.execute(
+        "SELECT id, success_count, failure_count FROM procedural_memory WHERE dedup_key = ?",
+        (key,),
+    ).fetchone()
+
+    if existing:
+        pid, sc, fc = existing
+        col = "success_count" if outcome == "success" else "failure_count"
+        db.execute(
+            f"UPDATE procedural_memory SET {col} = {col} + 1, last_used_at = ? WHERE id = ?",
+            (now, pid),
+        )
+        new = db.execute(
+            "SELECT success_count, failure_count, success_rate FROM procedural_memory WHERE id = ?",
+            (pid,),
+        ).fetchone()
+        print(f"Incremented [{outcome}] id={pid} '{args.name or trigger[:40]}': "
+              f"success={new[0]} failure={new[1]} rate={new[2]:.2f}")
+        return
+
+    # First sighting -> insert.
+    sc = 1 if outcome == "success" else 0
+    fc = 0 if outcome == "success" else 1
+    db.execute(
+        """INSERT INTO procedural_memory
+               (trigger_pattern, action, success_count, failure_count, source_agent,
+                last_used_at, name, steps, context_requirements, tags, dedup_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (trigger, args.action or "", sc, fc, args.agent or "", now,
+         args.name, args.steps, args.context, args.tags, key),
+    )
+    pid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+    print(f"Recorded NEW [{outcome}] id={pid} '{args.name or trigger[:40]}' "
+          f"(success={sc} failure={fc})")
 
 
 # ============================================================
@@ -426,6 +520,18 @@ def main():
     # hot
     sub.add_parser("hot", help="Show hot-tier drawers")
 
+    pr = sub.add_parser("proc-record",
+                        help="Record or increment a procedural pattern (UPSERT on trigger identity)")
+    pr.add_argument("--trigger", required=True, help="Trigger pattern (the pattern's identity)")
+    pr.add_argument("--outcome", choices=["success", "failure"], default="success",
+                    help="success (default) increments success_count; failure increments failure_count")
+    pr.add_argument("--action", help="What to do (set on first record; ignored on increment)")
+    pr.add_argument("--name", help="Short pattern name")
+    pr.add_argument("--steps", help="step1 -> step2 -> step3")
+    pr.add_argument("--context", help="Context requirements")
+    pr.add_argument("--tags", help="comma,separated,tags")
+    pr.add_argument("--agent", help="Source agent")
+
     args = parser.parse_args()
     if not args.cmd:
         parser.print_help()
@@ -437,6 +543,7 @@ def main():
         "kg-invalidate": cmd_kg_invalidate, "kg-stats": cmd_kg_stats,
         "diary-write": cmd_diary_write, "diary-read": cmd_diary_read,
         "status": cmd_status, "hot": cmd_hot,
+        "proc-record": cmd_proc_record,
     }
     cmds[args.cmd](args)
 
