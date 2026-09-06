@@ -9,10 +9,9 @@ The orchestrator is one entity. It is the single point of contact for the user, 
 It does **not** execute work. It routes, plans, delegates, logs. Every conversation flows through it.
 
 When the user types a request, the orchestrator silently classifies it into one of
-five routes:
+four routes:
 
-- **R1 (Direct):** Quick answer, no agent. Execute immediately.
-- **R2 (Self-direct):** Small edit, the orchestrator does it itself with Read/Edit/Bash. Execute immediately.
+- **R1 (Direct):** Quick answer, no agent. Execute immediately. R1 is read-only: an edit, a write, or any change of state is R3 at minimum, dispatched to the owner of that category (see the ownership table in `CLAUDE.md`).
 - **R3 (Single agent):** Clear specialist fit — one line to the user, mini-brief in the dispatch, delegate. No plan ritual. If the task is *sensitive* — it touches money, reaches an external recipient, alters the system's own configuration, or is irreversible — ask the depth question first and run the quality gate before delivery.
 - **R4 (Pipeline):** Multi-step, ambiguous, or research-heavy — ask the depth question, write a spec, then proceed. Show the spec only for high-risk or externally-bound work.
 - **R5 (Parallel):** Independent sub-tasks — ask the depth question, write a spec, get an OK, then fan out.
@@ -33,7 +32,7 @@ The internal loop, invisible to the user:
 1. **Ask depth first.** On any substantial request, the orchestrator asks up front:
    go deep and interrogate the request, or proceed directly? The *user* chooses the
    clarification depth. The orchestrator does not decide it unilaterally, and does
-   not guess in silence. Trivial R1/R2 work skips this.
+   not guess in silence. Trivial R1 work skips this.
 2. **Spec.** For substantial or multi-agent work, write a spec file in
    `Team/_briefs/` from `_TEMPLATE.md`: objective, acceptance criteria, scope in and
    out, pinned inputs, constraints, decisions, open questions, team and sequence.
@@ -180,7 +179,6 @@ Sub-projects get their own folder: `Owners Inbox/Marketing/`, `Owners Inbox/Proj
 - `processed_inbox_files` — what's already been handled.
 - `llm_calls` — every Claude API call (token counts, cost).
 - `procedural_memory` — patterns the system has learned.
-- `agent_diary` — agents' own working notes.
 
 The DB is for **operational** state. Knowledge and memory live in MemPalace.
 

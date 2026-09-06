@@ -226,73 +226,6 @@ CREATE TABLE tags (
 );
 
 
-CREATE TABLE knowledge_entries (
-    id              INTEGER PRIMARY KEY,
-    title           TEXT    NOT NULL,
-    content         TEXT    NOT NULL,     -- the actual knowledge (markdown)
-    category        TEXT,                 -- broad category for grouping
-    added_by        INTEGER NOT NULL REFERENCES team_members(id) ON DELETE RESTRICT,
-    is_archived     INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
-    created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-, project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL, summary TEXT, valid_from TEXT, valid_to TEXT, memory_type TEXT DEFAULT 'fact' CHECK(memory_type IN ('fact', 'decision', 'preference', 'event', 'discovery', 'advice')));
-
-CREATE INDEX idx_knowledge_entries_category ON knowledge_entries (category);
-CREATE INDEX idx_knowledge_entries_is_archived ON knowledge_entries (is_archived);
-CREATE TRIGGER trg_knowledge_entries_updated_at
-AFTER UPDATE ON knowledge_entries
-FOR EACH ROW
-BEGIN
-    UPDATE knowledge_entries SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-    WHERE id = NEW.id;
-END;
-CREATE INDEX idx_knowledge_entries_project_id ON knowledge_entries (project_id);
-CREATE TRIGGER trg_activity_knowledge_entries_insert
-AFTER INSERT ON knowledge_entries
-FOR EACH ROW
-BEGIN
-    INSERT INTO activity_history (actor_id, action, entity_type, entity_id, summary, occurred_at)
-    VALUES (NEW.added_by, 'created_knowledge_entry', 'knowledge_entry', NEW.id,
-            'Added knowledge entry: ' || NEW.title,
-            strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
-END;
-CREATE TRIGGER trg_activity_knowledge_entries_update
-AFTER UPDATE ON knowledge_entries
-FOR EACH ROW
-WHEN OLD.updated_at != NEW.updated_at
-BEGIN
-    INSERT INTO activity_history (actor_id, action, entity_type, entity_id, summary, occurred_at)
-    VALUES (NEW.added_by, 'updated_knowledge_entry', 'knowledge_entry', NEW.id,
-            'Updated knowledge entry: ' || NEW.title,
-            strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
-END;
-CREATE TRIGGER knowledge_fts_ai AFTER INSERT ON knowledge_entries
-WHEN new.is_archived = 0
-BEGIN
-    INSERT INTO knowledge_fts(rowid, title, content, summary)
-    VALUES (new.id, new.title, new.content, new.summary);
-END;
-CREATE TRIGGER knowledge_fts_ad AFTER DELETE ON knowledge_entries BEGIN
-    INSERT INTO knowledge_fts(knowledge_fts, rowid, title, content, summary)
-    VALUES('delete', old.id, old.title, old.content, old.summary);
-END;
-CREATE TRIGGER knowledge_fts_au AFTER UPDATE ON knowledge_entries BEGIN
-    -- Always remove old entry from index (if it was there)
-    INSERT INTO knowledge_fts(knowledge_fts, rowid, title, content, summary)
-    VALUES('delete', old.id, old.title, old.content, old.summary);
-    -- Only re-insert if the new state is active
-    INSERT INTO knowledge_fts(rowid, title, content, summary)
-    SELECT new.id, new.title, new.content, new.summary
-    WHERE new.is_archived = 0;
-END;
-
-CREATE TABLE knowledge_entry_tags (
-    knowledge_entry_id  INTEGER NOT NULL REFERENCES knowledge_entries(id) ON DELETE CASCADE,
-    tag_id              INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (knowledge_entry_id, tag_id)
-);
-
-CREATE INDEX idx_knowledge_entry_tags_tag_id ON knowledge_entry_tags (tag_id);
 
 CREATE TABLE processed_inbox_files (
     id              INTEGER PRIMARY KEY,
@@ -381,19 +314,6 @@ CREATE TABLE procedural_memory (
 CREATE INDEX idx_procedural_memory_rate
     ON procedural_memory(success_rate DESC);
 
-CREATE TABLE agent_diary (
-    id INTEGER PRIMARY KEY,
-    agent_id INTEGER NOT NULL REFERENCES team_members(id),
-    entry TEXT NOT NULL,
-    topic TEXT DEFAULT 'general',
-    session_id TEXT,
-    importance INTEGER DEFAULT 5 CHECK(importance >= 1 AND importance <= 10),
-    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-);
-
-CREATE INDEX idx_diary_agent ON agent_diary(agent_id);
-CREATE INDEX idx_diary_topic ON agent_diary(topic);
-CREATE INDEX idx_diary_importance ON agent_diary(importance DESC);
 
 CREATE TABLE diary_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -478,13 +398,6 @@ CREATE INDEX idx_kg_triples_subject ON kg_triples(subject);
 CREATE INDEX idx_kg_triples_object ON kg_triples(object);
 CREATE INDEX idx_kg_triples_predicate ON kg_triples(predicate);
 
-CREATE VIRTUAL TABLE knowledge_fts USING fts5(
-    title,
-    content,
-    summary,
-    content=knowledge_entries,
-    content_rowid=id
-);
 
 
 CREATE VIRTUAL TABLE activity_fts USING fts5(
