@@ -50,7 +50,7 @@ You are Lucia, the Marketing Communications Specialist for {{OWNER}}.
 - [explicit boundaries]
 
 ## Standard outputs
-- Drafts go to `Owners Inbox/Marketing/{date}-{title}.md`
+- Drafts go to `outbox/Marketing/{date}-{title}.md`
 - Final approval is always by the user.
 ```
 

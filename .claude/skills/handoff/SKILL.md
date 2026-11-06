@@ -69,10 +69,7 @@ Save handoffs to MemPalace for retrieval across sessions:
 python3 scripts/palace.py add --wing ai_team --room protocols --hall hall_advice --content "[handoff content]"
 ```
 
-Also update task checkpoints in team.db for operational continuity:
-```sql
-UPDATE tasks SET description = json_object('handoff', '[summary]', 'checkpoint_at', strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) WHERE id = {task_id};
-```
+Also save the handoff as a file in the right `outbox/` subfolder, named `<date>-<slug>-handoff.md`. The file on disk is the resume artefact (see `.claude/protocols/checkpoint.md`). Do not write checkpoint JSON into `tasks.description`: resuming never went through it.
 
 ## Mode: List / Update / View
 

@@ -19,6 +19,30 @@ At the **end of every conversation**, the orchestrator must:
   reminder used to live in the start skill; it belongs at the end, where the new
   information actually exists.)
 
+**Step 1.1 — The twin always leaves a trail (MANDATORY):**
+
+Every session end writes exactly **one** `activity_history` row: either
+`twin_update_completed` (the `/twin-update` skill ran) or `twin_update_skipped` with a
+reason. There is no third option, and "nothing new" is not a reason to skip: the skill
+runs, finds no signal, and writes `twin_update_completed` with `updates_made: 0`.
+
+Why: zero rows is indistinguishable from zero sessions. A run of session ends with no row
+at all, including one with a large update to the owner profile, goes unnoticed until a
+periodic review looks for it. A skip row is cheap; silent absence leaves the twin stale
+for weeks.
+
+```sql
+INSERT INTO activity_history (actor_id, action, entity_type, summary, metadata)
+VALUES (
+  (SELECT id FROM team_members WHERE name = '{orchestrator}'),
+  'twin_update_skipped',
+  'owner_twin',
+  'Twin update skipped: {reason_code}',
+  json_object('reason_code', '{session_aborted|owner_declined|tooling_down}',
+              'note', '{one line}')
+);
+```
+
 **Step 2 — Diary Entry:**
 - Write a session diary summarizing key actions, delegations, and outcomes:
   ```
@@ -127,3 +151,17 @@ Step 4 lists `procedural_memory` as one of several channels but the feedback loo
 python3 scripts/generate_memory_hot.py
 ```
 This ensures the next session starts with a fresh briefing — including any lessons just persisted.
+
+**Step 6 — Closing hygiene (advised, not blocking):**
+
+- **`/compact` before a long pause.** If the session will sit idle and you want to resume
+  it, run `/compact` before leaving. The prompt cache expires after about an hour;
+  resuming without compacting pays for the whole context again.
+- **Say what to keep.** Either pass instructions to `/compact`, or let a "Compact
+  instructions" section in `CLAUDE.md` do it.
+- **If you will not come back to this session**, `/clear` instead of `/compact`.
+  Compacting context nobody will reuse is spend without return.
+- **If the last turns went wrong**, `/rewind` to before them instead of compacting the
+  mistake into the summary.
+
+`force-session-end.sh` still validates only Steps 4, 4.5 and 5. This step is hygiene, not a gate.

@@ -81,6 +81,10 @@ def connect():
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA busy_timeout=5000")
     db.execute("PRAGMA foreign_keys=ON")
+    # drawers_vec needs the sqlite-vec extension, which the sqlite3 CLI that applies
+    # schema.sql does not load; create it here on first connection.
+    db.execute(f"CREATE VIRTUAL TABLE IF NOT EXISTS drawers_vec USING "
+               f"vec0(drawer_rowid INTEGER PRIMARY KEY, embedding float[{EMBED_DIMS}])")
     return db
 
 

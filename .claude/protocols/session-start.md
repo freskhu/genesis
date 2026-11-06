@@ -37,7 +37,7 @@ Then read `.claude/memory-hot.md` — the session briefing with current state
 activity, decisions, team, learned patterns, memory stats).
 
 **Step 1 — Inbox Check:**
-1. List files in `Team Inbox/`.
+1. List files in `inbox/`.
 2. Query `processed_inbox_files` in `Database/team.db` for what is already done.
 3. Any file NOT in the processed list → flag it to the user and suggest an
    action (index in MemPalace, assign to a team member, file for reference).

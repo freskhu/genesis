@@ -9,7 +9,7 @@ The database MUST be updated as the **final step** of every workflow. No task is
 - This happens BEFORE the hire is reported as complete to the user
 
 **Inbox processing → DB sync:**
-- When a Team Inbox file is processed, it MUST be marked in `processed_inbox_files`
+- When a file in `inbox/` is processed, it MUST be marked in `processed_inbox_files`
 - When content needs indexing, add it to MemPalace via `palace.py add`
 
 **Task tracking → DB sync:**
@@ -17,6 +17,6 @@ The database MUST be updated as the **final step** of every workflow. No task is
 - Significant tasks should be tracked in the `tasks` table
 
 **Deliverables → DB sync:**
-- When a team member produces a deliverable in `Owners Inbox/`, log it in `deliverables` table
+- When a team member produces a deliverable in `outbox/`, log it in `deliverables` table
 
 **General rule:** If it happened and it matters, it goes in the database. When in doubt, write to the DB.

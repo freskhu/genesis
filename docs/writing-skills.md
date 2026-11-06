@@ -48,7 +48,7 @@ Most skills touch one or more of:
 
 - **MemPalace:** `python3 scripts/palace.py {add|search|kg-add|...}`
 - **Operational DB:** `sqlite3 Database/team.db "SQL"`
-- **Filesystem:** read from `Team Inbox/`, write to `Owners Inbox/`
+- **Filesystem:** read from `inbox/`, write to `outbox/`
 
 Be explicit about which side-effects happen. If your skill writes to MemPalace, say which `--wing`, `--room`, `--hall` get the entry.
 

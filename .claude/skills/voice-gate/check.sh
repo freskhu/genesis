@@ -64,11 +64,22 @@ fi
 
 # ----- accumulator -----
 violations=""
+# ----- URLs out of the check -----
+# A URL is an address, not prose: a banned word inside a path is not a voice slip. Only
+# http:// and https://. A URL ends at a space or at ] < > " ), so the text of a markdown
+# link and the content of an <a href> are still checked.
+# LC_ALL=C because macOS sed aborts on invalid bytes in a UTF-8 locale.
+# The text stays in a variable, never in a temporary file: a deliverable leaves no copy.
+if ! scan_text="$(LC_ALL=C sed -E 's#[Hh][Tt][Tt][Pp][Ss]?://[^][:space:]<>")]+##g' "$file_path")"; then
+  echo "VERDICT=error reason=url-strip-failed path=$file_path"
+  exit 2
+fi
+
 add_v() { violations="${violations}- ${1}"$'\n'; }
 
 count_eri() {
   local n
-  n=$(grep -cEi "$1" "$file_path" 2>/dev/null) || n=0
+  n=$(printf '%s\n' "$scan_text" | grep -cEi "$1" 2>/dev/null) || n=0
   printf '%s' "${n:-0}"
 }
 
@@ -86,7 +97,7 @@ n=$(count_eri 'boa pergunta!|excelente ideia!|espero que ajude!|faz todo o senti
 
 # T1.D (skip in formal-minute)
 if [ "$context" != "formal-minute" ]; then
-  td_count=$(grep -cE '^[[:space:]]*(Em conclusão,|Em suma,|Em última análise,|Ao fim e ao cabo,|Por fim,|Adicionalmente,|Furthermore,|Moreover,|Additionally,|In conclusion,|Ultimately,|That said,)' "$file_path" 2>/dev/null) || td_count=0
+  td_count=$(grep -cE '^[[:space:]]*(Em conclusão,|Em suma,|Em última análise,|Ao fim e ao cabo,|Por fim,|Adicionalmente,|Furthermore,|Moreover,|Additionally,|In conclusion,|Ultimately,|That said,)' <<< "$scan_text" 2>/dev/null) || td_count=0
   [ "$td_count" -gt 0 ] && add_v "T1.D throat-clearing transition (opener): $td_count hit(s)"
 fi
 
@@ -117,7 +128,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     over=$((emcount - em_cap))
     [ "$over" -gt 0 ] && tg_hits=$((tg_hits + over))
   fi
-done < "$file_path"
+done <<< "$scan_text"
 [ "$tg_hits" -gt 0 ] && add_v "T1.G decorative em-dash in running prose (context=$context): $tg_hits hit(s)"
 
 # T1.I AO90

@@ -76,7 +76,7 @@ CREATE INDEX idx_deliverables_project_id ON deliverables (project_id);
 -- 3. FILES
 -- ============================================================================
 -- A registry of all files in the system. This gives visibility into what
--- lives in Team Inbox, Owners Inbox, and other folders.
+-- lives in inbox/, outbox/, and other folders.
 -- file_type is the format/extension (e.g., 'md', 'pdf', 'png'), not a
 -- semantic category -- that role is served by the linking relationships.
 

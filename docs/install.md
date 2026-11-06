@@ -30,7 +30,17 @@ Installs `apsw`, `sqlite-vec`, and `sentence-transformers`. The first run of `pa
 
 ```bash
 sqlite3 Database/team.db < Database/schema.sql
+for m in Database/migrations/025_drawers_fts_delete_triggers.sql \
+         Database/migrations/026_palace_stats_view.sql \
+         Database/migrations/027_spec_criteria.sql; do
+  sqlite3 Database/team.db < "$m" || break
+done
 ```
+
+`schema.sql` is the baseline. The three migrations after it fix the full-text index
+triggers, add the stats view the palace scripts read, and add the `spec_criteria`
+table. Apply them in this order, once. Migrations numbered below 025 are the history of
+the reference instance and are not applied on a fresh install.
 
 Verify:
 
@@ -83,12 +93,19 @@ Run `mempalace init`. If MemPalace isn't installed, install it (Step 2).
 ### `sqlite3` says "no such table: team_members"
 You skipped Step 3. Run the schema bootstrap.
 
-### `palace.py status` or a semantic search says "no such table: drawers_vec"
-Known gap: `palace.py status`, vector search, and `generate_memory_hot.py` read
-`drawers_vec` and the `v_palace_stats` view, and `Database/schema.sql` does not yet
-create either. Keyword search (`palace.py search "..." --mode keyword`) and every
-other subcommand work without them. A migration to close this is next up; until
-then, create the vector table and the view by hand if you need semantic search.
+### `palace.py status` says "no such table: v_palace_stats"
+You applied `schema.sql` but not the migrations of Step 3. Apply
+`Database/migrations/026_palace_stats_view.sql`. The vector table (`drawers_vec`) is
+created by `palace.py` itself on first connection, because it needs the sqlite-vec
+extension that the `sqlite3` CLI does not load.
+
+### Check the install end to end
+```bash
+for t in .claude/hooks/*.test.sh; do bash "$t" >/dev/null || echo "FAIL $t"; done
+python3 scripts/test_palace_audit.py
+python3 scripts/palace_audit.py --quiet
+bash scripts/check_refs.sh
+```
 
 ### `/genesis` doesn't appear in Claude Code's slash menu
 Restart Claude Code in the project root. Skills are discovered on session start.
@@ -115,4 +132,5 @@ To preserve memory but reset the operational DB:
 ```bash
 rm Database/team.db
 sqlite3 Database/team.db < Database/schema.sql
+# then the migrations of Step 3
 ```

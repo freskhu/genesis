@@ -123,7 +123,7 @@ chasing agents or catching errors.
    `_TEMPLATE.md`. The team reads it while working, and its acceptance criteria are
    the checklist you verify against at the end — the same list, deliberately. R3
    gets an inline mini-brief; trivial work gets nothing.
-3. **Agents save their own deliverables** to `Owners Inbox/` and return the path
+3. **Agents save their own deliverables** to `outbox/` and return the path
    plus their decisions, not the document body.
 4. **Verify.** File exists? Matches the brief? Facts confirmed against source?
    Nothing invented?
@@ -247,7 +247,7 @@ Reusable workflow definitions in `.claude/skills/`:
 | `/session-end` | Mandatory protocol before the conversation closes. |
 | `/quality-gate` | Pre-delivery review of one deliverable. |
 | `/voice-gate` | Hard block on Tier 1 voice violations. Run before `/quality-gate`. |
-| `/inbox-process` | Process new files dropped in `Team Inbox/`. |
+| `/inbox-process` | Process new files dropped in `inbox/`. |
 | `/twin-update` | Update the owner's profile in MemPalace. |
 | `/handoff` | Package context for another session or agent. |
 | `/weekly-review` | 15-minute weekly check-in. |
@@ -262,14 +262,41 @@ Reusable workflow definitions in `.claude/skills/`:
 
 | Hook | Event | Purpose |
 |---|---|---|
-| `block-temp-inbox.sh` | PreToolUse: Write/Edit | Blocks temp files in `Owners Inbox/`. |
-| `sql-guardrails.sh` | PreToolUse: Bash | Blocks destructive SQL. Ignores the same words inside quoted string literals. |
-| `voice-check.sh` | PostToolUse: Write/Edit | Soft alert on voice-banlist violations. Inert without a banlist. |
+| `block-temp-inbox.sh` | PreToolUse: Write/Edit | Blocks temp files in `outbox/`. |
+| `sql-guardrails.sh` | PreToolUse: Bash | Blocks destructive SQL and direct writes to `spec_criteria`. Checks both quoting forms; allows temp objects and `wal_checkpoint(TRUNCATE)`. |
+| `prod-kill-guard.sh` | PreToolUse: Bash | Blocks `pkill`/`killall` by pattern on protected processes (`protected-processes.conf`). Inert until configured. |
+| `copy-guard.sh` | PreToolUse: Bash | Blocks copies of databases with personal data outside allowed destinations (`copy-guard.conf`). Inert until configured. |
+| `agent-throttle.sh` | PreToolUse: Agent/Task | Warns (never blocks) when another agent is still running. |
+| `spec-criteria-gate.sh` | PreToolUse: Agent/Task | Ingests the acceptance criteria of a spec cited in the dispatch; blocks a spec with no criteria. |
+| `voice-check.sh` | PostToolUse: Write/Edit | Soft alert on voice-banlist violations. Skips URLs. Inert without a banlist. |
+| `commit-nudge.sh` | PostToolUse: Write/Edit | Nudges at 25 edits without a commit in a git repo, then every 10. |
 | `post-delegation.sh` | PostToolUse: Task | Blocks until a diary or activity row exists for the delegation. |
 | `board-sync-reminder.sh` | PostToolUse: Bash | Reminds you to move project-board cards. Inert until configured. |
-| `session-stop-save.sh` | Stop | Auto-saves the session checkpoint. Skips subagent sessions. |
+| `secret-brake.sh` | UserPromptSubmit | Stops messages shaped like a secret and points to the secrets channel. |
+| `correction-nudge.sh` | UserPromptSubmit | Nudges from the second correction in the same session on. |
+| `automode-warn.sh` | UserPromptSubmit | Warns once per session that auto mode will refuse some real-world writes. |
+| `session-stop-save.sh` | Stop | Auto-saves every 15 messages typed by the user. Skips subagent sessions. |
 | `force-session-end.sh` | Stop | Blocks the close until the Session End Protocol is evidenced. Skips subagent sessions. |
 | `precompact-save.sh` | PreCompact | Saves context before compaction. |
+
+Every hook has a `.test.sh` next to it. Run the whole battery with
+`for t in .claude/hooks/*.test.sh; do bash "$t" || exit 1; done`.
+
+## Rules
+
+`.claude/rules/` holds behaviour every agent follows, loaded with the project
+instructions:
+
+| Rule | What it governs |
+|---|---|
+| `_agent-token-discipline.md` | Read only what you need; the handoff goes to disk before the first write that leaves the agent. |
+| `_agent-voice-block.md` | The voice block pasted into agent definitions. |
+| `health-data-boundary.md` | Clinical content never in drawers or `team.db`; correction procedure. |
+| `financial-data-boundary.md` | Company figures stay in files; shared memory gets the pointer. |
+| `personal-data-db-access.md` | Databases with personal data are read in place, never copied. |
+| `secrets-channel.md` | Secrets never go through the conversation. |
+| `permissions-scope.md` | How local permissions match, and how they are granted. |
+| `web-access-escalation.md` | Two automatic routes per site, then the block ladder, then the user once. |
 
 **Why hooks and not rules:** a behaviour that must happen every time an event
 happens belongs in a hook. A rule in this file is a hope — see
@@ -285,8 +312,8 @@ genesis/
 ├── CLAUDE.md            # this file (orchestrator brief)
 ├── Team/                # team member profiles
 │   └── orchestrator.md  # the user's customised orchestrator (created by /genesis)
-├── Owners Inbox/        # deliverables produced FOR the user
-├── Team Inbox/          # files the user drops FOR the team
+├── outbox/              # deliverables produced FOR the user
+├── inbox/               # files the user drops FOR the team
 ├── Database/team.db     # operational data (tasks, agents, activity)
 ├── scripts/             # palace.py and helpers
 ├── .claude/skills/      # workflow definitions
@@ -294,9 +321,9 @@ genesis/
 ```
 
 ### Inbox protocol
-- The user drops files into `Team Inbox/`. The team processes (via `/inbox-process`) and moves source files to `Team Inbox/_processed/`.
-- The team places deliverables into `Owners Inbox/{project}/` for the user to review.
-- The root of `Owners Inbox/` stays clean — only unprocessed/new items there temporarily.
+- The user drops files into `inbox/`. The team processes (via `/inbox-process`) and moves source files to `inbox/_processed/`.
+- The team places deliverables into `outbox/{project}/` for the user to review.
+- The root of `outbox/` stays clean — only unprocessed/new items there temporarily.
 
 ---
 
@@ -350,7 +377,7 @@ At the start of every conversation:
 1. Read `Team/orchestrator.md` (who is the user).
 2. Regenerate memory hot: `python3 scripts/generate_memory_hot.py`.
 3. Read `.claude/memory-hot.md`.
-4. Check Team Inbox for new files.
+4. Check `inbox/` for new files.
 5. Check open tasks.
 6. Log `session_start` in `activity_history`.
 

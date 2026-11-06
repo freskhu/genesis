@@ -27,10 +27,10 @@ Team/_briefs/*
 !Team/_briefs/README.md
 
 # Inbox content
-Owners Inbox/*
-Team Inbox/*
-!Owners Inbox/.gitkeep
-!Team Inbox/.gitkeep
+outbox/*
+inbox/*
+!outbox/.gitkeep
+!inbox/.gitkeep
 
 # Environment / secrets
 .env
@@ -64,3 +64,6 @@ build/
 # Logs
 *.log
 logs/
+
+# Real configuration of the scripts/bin wrappers (the .example files are the templates)
+scripts/bin/*.env

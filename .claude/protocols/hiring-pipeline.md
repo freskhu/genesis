@@ -4,7 +4,7 @@
 
 1. The orchestrator identifies a skill gap (no existing member fits the task)
 2. The orchestrator asks Maria to research: what does a real expert in this field know, do, and prioritize?
-3. Maria delivers a research brief to `Owners Inbox/`
+3. Maria delivers a research brief to `outbox/`
 4. The orchestrator passes the brief to Sarah (HR)
 5. Sarah designs the new team member: name, persona, identity, skills, agent definition
 6. Sarah creates the agent in `.claude/agents/<name>.md`, the profile in `Team/<name>.md`, and updates `Team/roster.md`

@@ -12,7 +12,7 @@ allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]
 
 The orchestrator determines that no existing team member can handle the task. Check the roster:
 ```sql
-SELECT id, name, role, status FROM team_members WHERE status = 'active';
+SELECT id, name, role FROM team_members WHERE is_active = 1;
 ```
 
 If no match, proceed with hiring.
@@ -22,7 +22,7 @@ If no match, proceed with hiring.
 Delegate to Maria (Senior Researcher):
 - "Maria, pesquisa o que um expert real em [AREA] sabe, faz, e prioriza."
 - Maria uses WebSearch and WebFetch to research real-world professionals
-- Maria delivers a research brief to `Owners Inbox/Team Reports/research-brief-[role].md`
+- Maria delivers a research brief to `outbox/Team Reports/research-brief-[role].md`
 
 ## Step 3 -- Sarah Hires
 
@@ -47,14 +47,14 @@ MANDATORY -- hire is NOT complete until DB is updated.
 
 Delegate to Lena:
 ```sql
-INSERT INTO team_members (name, role, status, profile_path, agent_path, joined_at)
-VALUES (?, ?, 'active', 'Team/<name>.md', '.claude/agents/<name>.md', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
+INSERT INTO team_members (name, role, profile_path, agent_path, joined_at)
+VALUES (?, ?, 'Team/<name>.md', '.claude/agents/<name>.md', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
 ```
 
 Log the hire:
 ```sql
-INSERT INTO activity_history (actor_id, action, entity_type, summary, occurred_at)
-VALUES (1, 'hire_completed', 'team_members', 'Hired [name] as [role]', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
+INSERT INTO activity_history (actor_id, action, entity_type, entity_id, summary, occurred_at)
+VALUES (1, 'hire_completed', 'team_member', (SELECT id FROM team_members WHERE name = ?), 'Hired [name] as [role]', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'));
 ```
 
 ## Step 5 -- Delegate Original Task

@@ -41,8 +41,8 @@ effort="${CLAUDE_EFFORT:-$(printf '%s' "$input" | jq -r '.effort.level // empty'
 # ----- scope filter (positive match required) -----
 # Only run on deliverable folders. Adjust paths as needed.
 case "$file_path" in
-  */Owners\ Inbox/*) ;;
-  */Team\ Inbox/*) ;;
+  */outbox/*) ;;
+  */inbox/*) ;;
   *) exit 0 ;;
 esac
 
@@ -79,13 +79,20 @@ fi
 
 # ----- accumulator -----
 warnings=""
+# ----- URLs out of the check -----
+# A URL is an address, not prose. Only http:// and https://; a URL ends at a space or at
+# ] < > " ), so the text of a markdown link is still checked. LC_ALL=C because macOS sed
+# aborts on invalid bytes in a UTF-8 locale. The text stays in a variable, no temp file.
+# Warning, not a block: if stripping fails, read the raw file instead of going silent.
+scan_text="$(LC_ALL=C sed -E 's#[Hh][Tt][Tt][Pp][Ss]?://[^][:space:]<>")]+##g' "$file_path")" || scan_text="$(cat "$file_path")"
+
 add_warning() { warnings="${warnings}- ${1}"$'\n'; }
 
 # Helper: count matches of an extended-regex pattern (case-insensitive) in file.
 # Always prints exactly one integer (grep -c exits 1 with output "0" when no match).
 count_eri() {
   local n
-  n=$(grep -cEi "$1" "$file_path" 2>/dev/null) || n=0
+  n=$(printf '%s\n' "$scan_text" | grep -cEi "$1" 2>/dev/null) || n=0
   printf '%s' "${n:-0}"
 }
 
@@ -112,7 +119,7 @@ if [ "$context" != "formal-minute" ]; then
   td_count=0
   # match only as line-openers to avoid mid-sentence false positives
   td_pat='^[[:space:]]*(Em conclusão,|Em suma,|Em última análise,|Ao fim e ao cabo,|Por fim,|Adicionalmente,|Furthermore,|Moreover,|Additionally,|In conclusion,|Ultimately,|That said,)'
-  td_count=$(grep -cE "$td_pat" "$file_path" 2>/dev/null) || td_count=0
+  td_count=$(printf '%s\n' "$scan_text" | grep -cE "$td_pat" 2>/dev/null) || td_count=0
   [ "$td_count" -gt 0 ] && add_warning "T1.D throat-clearing transition (line opener): $td_count hit(s). Cut it, or lead with the verb."
 fi
 
@@ -160,7 +167,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     over=$((emcount - em_cap))
     [ "$over" -gt 0 ] && tg_hits=$((tg_hits + over))
   fi
-done < "$file_path"
+done <<< "$scan_text"
 [ "$tg_hits" -gt 0 ] && add_warning "T1.G decorative em-dash in running prose: $tg_hits hit(s) over the cap (context=$context). Fine in headers, table cells and list items carrying one em-dash; banned mid-sentence in prose."
 
 # ----- T1.I — AO90 PT-PT (skip in documentation, but we already exited if doc) -----

@@ -1,6 +1,6 @@
 ---
 name: inbox-process
-description: "Process new files in Team Inbox: detect, flag to {{OWNER}}, process with approval, mark as done"
+description: "Process new files in inbox/: detect, flag to {{OWNER}}, process with approval, mark as done"
 user-invocable: true
 argument-hint: "[optional: specific filename to process]"
 allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]
@@ -10,9 +10,9 @@ allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"]
 
 ## Step 1 -- Detect New Files
 
-List Team Inbox contents:
+List `inbox/` contents:
 ```bash
-ls -la "Team Inbox/"
+ls -la "inbox/"
 ```
 
 Check what's already processed:
@@ -47,7 +47,7 @@ python3 scripts/palace.py search "<key phrase from the file>" --mode keyword
 ```
 4. File it:
 ```bash
-python3 scripts/palace.py add --wing <wing> --room <room> --hall <hall> --file "Team Inbox/<filename>"
+python3 scripts/palace.py add --wing <wing> --room <room> --hall <hall> --file "inbox/<filename>"
 ```
 
 ### If assigning to team member:
@@ -69,6 +69,6 @@ VALUES (?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?);
 ## Rules
 
 - Never process without {{OWNER}}'s approval
-- Never delete files from Team Inbox
+- Never delete files from `inbox/`
 - Always mark processed files in the DB
 - If 3+ files are being indexed, trigger `/dream` after completion

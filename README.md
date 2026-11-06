@@ -26,6 +26,44 @@ It is not a framework. It is not a chatbot. It is the seed of an *operating syst
 
 ---
 
+## What it has built
+
+Genesis is the template of a team that already works inside a company. Curval Metalworks is a Portuguese metalworking firm that makes industrial fans and turbines for heavy industry, where much of the routine ran on spreadsheets, retyped data, manual month-end checks and the owner's memory. The owner built a team of Claude Code agents, each with a name and a role, and handed it those problems one at a time. The rule: agents prepare, calculate, draft and check; anything that leaves the company or cannot be undone waits for a person to approve, sign or send. With that way of working in place, the same team went on to build a B2B startup, Procurum.
+
+### Quoting
+
+Quoting industrial fans, turbines and their parts depended on spreadsheets and on the owner's memory. Vitor, the full-stack developer agent, and Nora, the interface agent, built a phone and desktop app, with Catarina on the ERP link, Diogo on infrastructure and Tiago on QA. The user picks what to quote and enters weights and dimensions; the engine prices each line from the company's rules, with versioned parameters, and produces the PDF. The owner sets the rules, approves every change to the calculation and sends the quote. Quoting is now done by the owner from a phone. Next: a button that writes the email reply as a draft and never sends it.
+
+### Job and project management
+
+Each new job had to start with the full process, and draughtspeople's questions to customers got lost between the project board and email. Every job card now starts as a copy of a template carrying the process checklist. When a draughtsperson leaves a question on a card, the system finds the customer's email thread and Bruno, the B2B communications agent, writes the question as a draft in the customer's language; the answer comes back to the card. Drafts never leave on their own: the owner reviews and sends them.
+
+### Weld drawing validation
+
+Welded production drawings needed a first technical check before signature. Hugo, the welding engineer agent, checks whether the welding procedure covers the material, thicknesses and positions, classifies each finding as blocking or minor, and returns a report, a stamped PDF and a marked-up PDF for the draughtsperson. The human welding engineer signs; Hugo's stamp counts only as a recommendation. Each drawing now reaches the engineer with the first pass done.
+
+### Order intake into the ERP
+
+Every order arriving by email had to be entered in the ERP, forwarded to production and opened on the job board. A pipeline built around Catarina, the ERP integration agent, now spots the order in the mailbox, extracts the data and does all three. Clear cases run on their own; unclear ones go to a review queue that Vitor built, where each can be advanced, corrected or discarded. The owner works through that queue, and anything irreversible in the ERP stays with the owner. Entering an order is no longer copy work.
+
+### Time clock
+
+Checking clock-ins, overtime and payroll variables was manual month-end work. Vitor and Nora built an internal web app, with Maria, the research agent, on the rules. It loads the time clock export, opens on the exceptions (missed clock-ins, hours that differ from the ERP), computes overtime by the company's rules and produces the payroll variables file. The person who runs payroll checks and exports; the owner decides who has access. The month-end check now starts with the exceptions in view.
+
+### Production planning
+
+Planning operations by section, with real people and machines, and replanning when the day went off course, was done by hand. Matilde, the production engineer agent, owns the model and the scheduling engine, which sets planned dates per operation at finite capacity for each open work order. Every working day an agent reconciles the plan with the ERP, pushes back what was not done and logs what changed and why. The production planner reads the plan and decides. Status: in progress; warnings for expected delays are the next goal.
+
+### Offline robot programming
+
+Writing and converting programs for the robotic welding cells took up the robot programmer's time. The programmer now submits a request to a queue, and Gonçalo, the offline robot programming agent, writes or converts the program; the system checks the import rules and delivers the files with a note of the assumptions to validate. Nothing runs on a real cell without human validation: the programmer checks it on the controller and runs a dry cycle first.
+
+### Procurum, built by the team
+
+A B2B procurement platform with AI needed backend, an AI layer, design and QA, without a hired software team. Tomas, the platform agent, owns backend, API and operations; Rui, the AI systems engineer agent, owns agents, prompts and evaluation; Alice, the product design agent, owns the design system, Nora builds the screens and Tiago tests end to end. The buyer writes what is needed and marks suppliers; the platform requests quotes by email, reads the replies, compares them and sends the order. The purchasing operator decides at every step. In progress: a new frontend, where the owner approves each block before the next.
+
+---
+
 ## 30-second quickstart
 
 ```bash
@@ -57,8 +95,11 @@ After `/genesis` completes, your repository contains:
 - **An orchestrator** (`Team/orchestrator.md`) that knows your name, role, projects, communication style, and dealbreakers.
 - **A memory layer** (MemPalace) seeded with your identity and current commitments — searchable by *meaning*, not just keywords.
 - **A starter roster**: Maria (research), Sarah (HR), Lena (DBA), plus 3-5 agents you chose during the interview, each with a real name, scope, and voice.
-- **A workflow**: drop a PDF in `Team Inbox/`, get a deliverable in `Owners Inbox/`. No long prompts.
+- **A workflow**: drop a PDF in `inbox/`, get a deliverable in `outbox/`. No long prompts.
 - **Skills you can run anytime**: `/hire` to grow the team, `/dream` to consolidate memory, `/kaizen` for daily improvements, `/weekly-review`, `/quarterly-review`, `/handoff`, and more.
+- **Specs with checkable criteria**: for substantial work the orchestrator writes a spec in `Team/_briefs/`; each acceptance criterion becomes a row with a state. The author claims it with a pointer to the proof, someone else verifies it, and a spec without criteria is not dispatched.
+- **Guardrails as hooks, each with its own test**: destructive SQL, secrets pasted into the chat, copies of databases with personal data, pattern-based kills of production processes, a second agent launched while one is still running, repeated corrections in the same session, edits piling up without a commit.
+- **Rules for what never goes into shared memory**: health data, company financial figures, secrets, copies of personal-data databases, plus a ladder for reaching websites (captchas included) before asking you.
 
 ---
 
@@ -92,7 +133,7 @@ After `/genesis` completes, your repository contains:
 - **Orchestrator (kernel):** routes requests, never executes itself.
 - **Agents (processes):** specialised, stateless, speak only when called.
 - **MemPalace (memory):** vector embeddings for semantic search, knowledge graph for entity relationships, organised in *wings* (work, personal, projects).
-- **Filesystem (I/O):** `Team Inbox/` for input, `Owners Inbox/` for output.
+- **Filesystem (I/O):** `inbox/` for input, `outbox/` for output.
 - **Dreaming:** a nightly skill (`/dream`) that consolidates the day's memory — strengthening relevant facts, pruning stale ones.
 
 For the full architecture, read [`docs/architecture.md`](docs/architecture.md).
@@ -106,20 +147,26 @@ genesis/
 ├── CLAUDE.md                    # the orchestrator's system prompt (Claude reads this)
 ├── AGENTS.md                    # how to extend the system (per agents.md spec)
 ├── Team/                        # team profiles (orchestrator.md is created by /genesis)
-├── Owners Inbox/                # team deliverables for the user
-├── Team Inbox/                  # user's input files for the team
+├── outbox/                      # team deliverables for the user
+├── inbox/                       # user's input files for the team
 ├── Database/
 │   ├── team.db                  # operational SQLite (tasks, agents, activity)
 │   ├── schema.sql               # full schema
 │   └── migrations/              # incremental migrations
 ├── scripts/
 │   ├── palace.py                # MemPalace CLI wrapper
+│   ├── palace_audit.py          # read-only memory health audit
+│   ├── spec_criteria.py         # acceptance criteria: ingest, claim, verify, close
+│   ├── corrections.py           # repeat-correction nudge and its measurement
+│   ├── check_refs.sh            # every path the repo names must exist
 │   ├── generate_memory_hot.py   # session briefing generator
 │   └── memory_tiers.py          # hot/warm/cold tier management
 ├── .claude/
 │   ├── skills/                  # /genesis, /hire, /dream, /kaizen, etc.
 │   ├── agents/                  # Maria, Sarah, Lena (core trio)
-│   └── hooks/                   # SQL guardrails, session-end auto-save
+│   ├── rules/                   # data boundaries, secrets, permissions, web access
+│   ├── protocols/               # session start/end, quality gate, handoff, logging
+│   └── hooks/                   # guardrails, each with a .test.sh
 ├── docs/                        # architecture, skill writing, customising
 ├── LICENSE                      # Apache 2.0
 └── NOTICE                       # attribution + clarification on generated code
@@ -150,6 +197,8 @@ This is **v0.1** — the public seed. Things that work:
 - ☑ Inbox-driven workflows
 - ☑ Skills: dream, kaizen, db-health, quality-gate, voice-gate, weekly-review, quarterly-review, handoff
 - ☑ Hooks: SQL guardrails, session-stop auto-save, delegation gate, voice check
+- ☑ Hooks added in 2026-11: secret brake, copy guard, correction nudge, spec criteria gate, agent throttle (warning only), kill guard, commit nudge, auto-mode warning; every hook ships with a test
+- ☑ Machine-readable spec criteria, palace audit, data-boundary rules, web access ladder (see [`CHANGELOG.md`](CHANGELOG.md))
 
 ### What changed since v0.1
 
@@ -167,6 +216,13 @@ cost and procedural memory honest. The first end-to-end audit of that instance
 produced seven lessons that generalise — hooks versus native events, backups,
 `maxTurns`, memory-layer contracts, identifiers, probe reach, and classifiers wired
 to actuators — written up in [`docs/lessons-2026-08.md`](docs/lessons-2026-08.md).
+
+The second sync (2026-11) brought what two more months of daily use taught. The
+pattern is the same as the first time: rules that depended on someone remembering
+became hooks with tests; checks that could not fail (a row count on a full-text
+index) were replaced by checks that measure; and the spec's acceptance criteria
+stopped being a list someone reads and became rows someone has to prove. The details
+are in [`CHANGELOG.md`](CHANGELOG.md).
 
 Coming next:
 
@@ -228,7 +284,7 @@ Genesis is built so each user's local OS can stay connected to the swarm without
 |---|---|
 | **0 Lurker** *(default)* | Read, propose actions. You click to post. |
 | **1 Reactor** | Add emoji reactions (👍 / 🎉) on HIGH-relevance threads. |
-| **2 Drafter** | Write comment drafts to `Owners Inbox/Forum Pulse/`; you publish. |
+| **2 Drafter** | Write comment drafts to `outbox/Forum Pulse/`; you publish. |
 | **3 Speaker** | Post low-stakes comments directly (always signed `AI-assisted`). |
 | **4 Contributor** | Open PR drafts for trivial fixes; substantive comments on Discussions. |
 

@@ -132,7 +132,7 @@ If yes:
 > "You worked on Y last week. There's a discussion #38 exactly on Y. Want me to draft a comment with your perspective for you to review and post?"
 
 If yes:
-- Draft comment in `Owners Inbox/Forum Pulse/draft-comment-{discussion-number}.md`.
+- Draft comment in `outbox/Forum Pulse/draft-comment-{discussion-number}.md`.
 - Include: the user's relevant past work (citations to palace), a one-paragraph contribution.
 - User reviews and posts manually with `gh discussion comment {n}` (the skill never posts on the user's behalf without explicit click-through).
 
@@ -179,7 +179,7 @@ By default, the skill is read-only — every action requires user confirmation. 
 |---|---|---|
 | **0** | **Lurker** *(default)* | Read, classify, propose actions. Never post or import anything. |
 | **1** | **Reactor** | Add emoji reactions (👍 👎 🎉 ❤️) on threads marked HIGH relevance. No text. |
-| **2** | **Drafter** | Write comment drafts to `Owners Inbox/Forum Pulse/draft-{n}.md`. User reviews and posts manually. |
+| **2** | **Drafter** | Write comment drafts to `outbox/Forum Pulse/draft-{n}.md`. User reviews and posts manually. |
 | **3** | **Speaker** | Post low-stakes comments directly: "+1" with one-line context on Ideas, factual answers to Q&A where the palace has clear evidence, "I see this too" on bug reports matching the user's setup. Always signed. |
 | **4** | **Contributor** | Open PR drafts for trivial fixes (typos, doc edits) referenced in Issues. Comment substantively in Discussions when the palace gives strong signal. Always signed. |
 

@@ -91,6 +91,24 @@ change" are different questions and collapsing them hides the gate's real value:
     judgement; not auto-resolved
   - `deliberately_overridden` — findings raised, and the author consciously chose
     to ship anyway, with a rationale
+  - `returned_to_author` — the gate FAILed; the artifact went back to the author
+    and nothing has changed yet
+
+### Which outcome on a FAIL
+
+The outcome answers "did the deliverable change", and at the moment a FAIL is logged
+the answer is "not yet": the gate closes before the author acts. Mapping:
+
+| Situation | Outcome |
+|---|---|
+| FAIL returned to the author; the next step is the author's and nothing changed yet | `returned_to_author` (the default for any FAIL) |
+| FAIL at the pass cap (`pass_n >= 3` with a repeated defect family): the choice between the two exits is the user's | `surfaced_for_decision` |
+| The author fixed it and the gate re-checked: a new pass, with its own row | `materially_refined` on the new row; the FAIL row keeps `returned_to_author` |
+| Any FAIL | never `passed_unchanged` nor `deliberately_overridden`: a FAIL blocks delivery |
+
+Keep `surfaced_for_decision` for what really needs the user's judgement. When plain
+returns to the author also use it, the escalation signal drowns, and that is the
+signal the pass cap relies on.
 
 Without the outcome field, a gate that passes everything unchanged and a gate that
 rewrites half of what it sees look identical in the logs, and you cannot tell
@@ -107,17 +125,94 @@ VALUES (
   'Quality Gate [{class}/{triage}] {item}: {verdict} / {outcome}',
   json_object(
     'item',              '{deliverable_name}',
+    'component',         '{component_slug}',
     'class',             '{A|B|C}',
     'triage_level',      '{Critical|High|Medium|Low}',
     'verdict',           '{PASS|PASS WITH NOTES|FAIL}',
-    'outcome',           '{passed_unchanged|materially_refined|surfaced_for_decision|deliberately_overridden}',
+    'outcome',           '{passed_unchanged|materially_refined|surfaced_for_decision|deliberately_overridden|returned_to_author}',
+    'pass_n',            {n},
+    'defect_family',     '{family_slug|none}',
     'briefing_read',     '{yes|na_reason}',
+    'spec',              '{Team/_briefs/YYYY-MM-DD-slug.md|none}',
+    'criteria',          '{verified/total|none}',
     'findings_count',    '{n}',
     'outcome_rationale', '{one_line}',
     'reviewed_at',       strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
   )
 );
 ```
+
+`component`, `pass_n` and `defect_family` exist for the pass cap below. A gate run
+without them cannot count its passes, and the cap goes back to depending on memory.
+
+## Pass cap
+
+A gate cycle on the same component has a cap. **At the 3rd pass that finds a new defect
+of the same family, stop.** There is no 4th round without the user choosing.
+
+Why: a component can go through many passes where each one closes the measured cases
+and finds new ones of the same family (punctuation, wording, distance, language,
+number). The work keeps improving, days go by, and the choice is never put to the user.
+
+### How to count
+
+`component` is the stable key: the PR, the file or the module under gate, with the same
+slug across passes. `pass_n` is read from the database before each run, never from memory:
+
+```sql
+SELECT COALESCE(MAX(CAST(json_extract(metadata, '$.pass_n') AS INTEGER)), 0) + 1 AS pass_n
+FROM activity_history
+WHERE action = 'quality_gate'
+  AND json_extract(metadata, '$.component') = '{component_slug}';
+```
+
+`defect_family` names the family, not the defect (e.g. `price_parsing`, `owner_voice`,
+`source_fidelity`). It tells "the same failure again" from "a new failure of the same
+family", and the second case triggers the cap.
+
+### At `pass_n >= 3`
+
+With `pass_n >= 3` and a `defect_family` already seen on the component, the reviewer
+emits `surfaced_for_decision` and does **not** send it back for another round. The
+orchestrator takes ONE message to the user with three blocks and two exits:
+
+| Block | Content |
+|---|---|
+| Closed | what earlier passes fixed, measured |
+| Open | what is still defective, with one concrete example |
+| Cost | the practical effect of the remaining defect |
+
+| Exit | What it is |
+|---|---|
+| A, ship with the known defect | goes live with a named protection |
+| B, one more round with a deadline | an explicit deadline, never "until it is good" |
+
+- **What is already better than production ships.** It does not wait for the rest.
+- **What is independent moves in parallel.** It does not queue behind the gated component.
+- **A FAIL still blocks delivery.** The cap changes who decides the next step; it does not turn a FAIL into a delivery.
+
+## Spec criteria
+
+For A/B/C work that had a spec in `Team/_briefs/`, the reviewer checks **criterion by
+criterion** before issuing the verdict:
+
+1. Read the state: `python3 scripts/spec_criteria.py status --spec <spec>`. Each criterion
+   carries the evidence pointer the author left at `claim`.
+2. Per criterion, open the pointer and decide: `verify --spec <spec> --criterion <N> --by <reviewer>`
+   when the proof proves; `fail ... --note "<reason>"` when it does not prove, does not
+   open, or the criterion was not done.
+3. **Any criterion at `fail` forces a `FAIL` verdict**, however polished the prose.
+4. The `metadata` of the gate row carries `spec` (path) and `criteria` (`verified/total`);
+   outside a spec, both are `none`.
+
+- **A pointer that does not open is missing proof.**
+- **Whoever verifies did not author.** The triggers of migration 027 refuse a verifier who
+  authored or claimed the criterion.
+- **A subjective criterion** (voice, visual, positioning) is verifiable only if it names
+  the instrument that measures it (`/voice-gate`, or the id of the `quality_gate` row),
+  and the proof is that instrument's output.
+
+Outside A/B/C the verifier is the orchestrator, with the same commands and rules.
 
 ## Report format
 

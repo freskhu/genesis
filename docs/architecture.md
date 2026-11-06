@@ -40,7 +40,7 @@ The internal loop, invisible to the user:
    checklist in step 4 — the same list, deliberately. A single clear task gets an
    inline mini-brief instead; trivial work gets nothing.
 3. **Agents save their own work.** The agent writes its deliverable to
-   `Owners Inbox/` and returns a path plus its decisions, not the document body.
+   `outbox/` and returns a path plus its decisions, not the document body.
 4. **Verify.** Does the file exist? Does it match the brief? Are the facts confirmed
    against source? Did anything get invented?
 5. **Critique and iterate.** Request changes from the agent, or route through the
@@ -161,12 +161,12 @@ in someone else's inbox.
 
 The filesystem is the user-facing interface. Two folders matter:
 
-- `Team Inbox/` — the user drops files here. The team picks them up via `/inbox-process`.
-- `Owners Inbox/` — the team places deliverables here. The user reviews and acts.
+- `inbox/` — the user drops files here. The team picks them up via `/inbox-process`.
+- `outbox/` — the team places deliverables here. The user reviews and acts.
 
 Both folders are intentional. They mirror how a human team works: drop a brief on someone's desk, they leave the result on yours.
 
-Sub-projects get their own folder: `Owners Inbox/Marketing/`, `Owners Inbox/Project-X/`.
+Sub-projects get their own folder: `outbox/Marketing/`, `outbox/Project-X/`.
 
 ## Layer 5 — Database (operational state)
 
@@ -214,7 +214,7 @@ Orchestrator
   │ logs llm_calls + activity_history
   │ returns deliverable path to user
   ▼
-User: receives `Owners Inbox/Suppliers-PT/2026-05-08-shortlist.md`
+User: receives `outbox/Suppliers-PT/2026-05-08-shortlist.md`
 ```
 
 That's it. No black boxes, no magic. Five layers, each doing one thing well.

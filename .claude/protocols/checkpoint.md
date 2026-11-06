@@ -1,53 +1,31 @@
-# Context Management Protocol (MANDATORY)
+# Resuming long tasks (handoff on disk)
 
-**Trigger:** Long tasks (>15 turns), multi-document processing, full reviews, complex builds, agent failure mid-task, or every 10-15 substantive interactions.
+**Trigger:** long tasks (more than ~15 turns), processing many documents, complex builds, or an agent failure mid-task.
 
-All state persistence goes to `Database/team.db`. NEVER use temporary files, markdown checkpoints, or `/tmp/` for workflow state.
+**Why this changed.** An earlier version of this protocol asked agents to write a JSON checkpoint into `tasks.description` after every step. Measured over months in the reference instance: almost no task ever carried a checkpoint, while hundreds of handoff files were written to disk and used to resume. Resuming never went through the database. It goes through the handoff, so the protocol points at the mechanism that is actually used.
 
-## Checkpoint Protocol for Long Tasks
+## The resume artefact is the handoff on disk
 
-For tasks expected to require more than 15 turns (multi-document processing, full reviews, complex builds), the orchestrator MUST:
+Whoever does the work writes a handoff file in the right subfolder of `outbox/`, named `<date>-<slug>-handoff.md`, and updates it at every check. The trigger is not a number of turns, it is an observable event: **before the first write that leaves the agent for the world** (migration applied, file served, row written to an ERP, deploy, email sent), the handoff is already on disk. Full rule in `.claude/rules/_agent-token-discipline.md`.
 
-1. **Before delegating:** Create or identify a task entry in the `tasks` table with `status = 'in_progress'`.
-2. **Instruct the agent** to persist progress to the DB after each major step:
+The handoff covers: where it stopped, what was decided and why, absolute paths touched, what is left, blockers, and what was tried and did not work.
 
-> "This is a long task. After each major step, update the task checkpoint via SQL:
-> ```sql
-> UPDATE tasks SET description = json_object(
->   'step_completed', '{current_step}',
->   'next_step', '{next_step}',
->   'intermediate_data', '{summary_of_results}',
->   'files_touched', json_array('{path1}', '{path2}'),
->   'checkpoint_at', strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-> ) WHERE id = {task_id};
-> ```
-> Continue working after saving. Do NOT rely on conversation memory for state."
+Besides the file, the agent returns the handoff block in its answer (`.claude/protocols/agent-outputs.md`): *What was done / What was decided / What's left / Blockers*. One is for resuming, the other is for the orchestrator to verify without opening the file.
 
-## Checkpoint Recovery
+## Recovering from a failure mid-task
 
-If an agent fails mid-task (error, context overflow, maxTurns reached):
+When an agent dies (error, context overflow, `maxTurns`):
 
-1. The orchestrator MUST check for checkpoint data in the task:
-   ```sql
-   SELECT id, title, description FROM tasks WHERE status = 'in_progress';
-   ```
-2. If `description` contains valid JSON checkpoint data, the orchestrator MUST parse it and include it when relaunching the agent: "Resume from this checkpoint: [checkpoint contents]. Do NOT redo completed work."
-3. If no checkpoint data exists, the orchestrator MUST inform the user that progress was lost and ask whether to restart from scratch or abandon.
+1. Look for the handoff: `ls -t "outbox/<project>/"*handoff*` and, if the agent did not name it, `find "outbox" -iname "*<slug>*" -mtime -1`.
+2. If it exists, relaunch with the handoff path in the dispatch: *"resume from this handoff: `<path>`. Do not redo what it lists as done."*
+3. If it does not exist, there are two fallbacks, in order: the agent's diary (`palace.py search "<slug>"`, which covers `diary_entries`) and the run transcript. Only after both fail, tell the owner the progress was lost and ask whether to restart or abandon.
 
-## Context Preservation Rules
+An agent that dies **without** a handoff on disk is a defect to report, not an accident: token discipline asks for it before the first write to production precisely for this case.
 
-- Agents MUST persist important intermediate results to the database, NOT rely on conversation memory alone
-- For document processing: read, extract, persist to DB, then move on. Do NOT keep raw document content in context.
-- For multi-step workflows: save state to the `tasks.description` field after each major step. A new session MUST be able to resume from the last saved state.
-- NEVER write checkpoint files to `/tmp/`, `Owners Inbox/`, or any other filesystem location. The database is the single source of truth.
+## What still holds
 
-## Mid-Session Context Preservation (MANDATORY)
-
-Every 10-15 substantive interactions, the orchestrator MUST:
-
-1. **Persist key learnings** to MemPalace via `palace.py add`
-2. **Update task checkpoints** for any in-progress work
-3. **Write agent observations** via `palace.py diary-write`
-4. This is especially critical BEFORE delegating to agents that may consume many turns
-
-MemPalace hooks handle auto-save every 15 messages and pre-compaction saves automatically.
+- Important intermediate results do not live only in the conversation.
+- Documents: read, extract, save the extract, move on. Do not keep raw content in context.
+- Learnings go to the palace (`palace.py add`) and observations to the diary (`palace.py diary-write`) as they happen, not at the end.
+- `tasks` keeps recording operational state: `status`, `title`, owner. What was dropped is the **checkpoint JSON** in `tasks.description`, not the table.
+- The palace auto-save (every 15 messages and before compaction) runs by hook and does not depend on anyone remembering.

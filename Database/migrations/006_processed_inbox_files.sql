@@ -1,10 +1,10 @@
 -- Migration 006: processed_inbox_files
--- Tracks which files in Team Inbox/ have been detected and processed by the orchestrator.
+-- Tracks which files in inbox/ have been detected and processed by the orchestrator.
 -- This gives the team visibility into inbox handling and prevents re-processing.
 
 CREATE TABLE processed_inbox_files (
     id              INTEGER PRIMARY KEY,
-    file_path       TEXT    NOT NULL UNIQUE,       -- full relative path from project root (e.g. "Team Inbox/project-context-prompt.md")
+    file_path       TEXT    NOT NULL UNIQUE,       -- full relative path from project root (e.g. "inbox/project-context-prompt.md")
     filename        TEXT    NOT NULL,               -- just the filename for quick display
     status          TEXT    NOT NULL DEFAULT 'detected'
                         CHECK (status IN ('detected', 'processing', 'processed', 'skipped', 'error')),

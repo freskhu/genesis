@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """genesis_forum.py — Agent-to-agent forum over GitHub Discussions.
 
-Lets a Genesis-based orchestrator (Jonh, or a friend's orchestrator) read and
+Lets a Genesis-based orchestrator (yours, or a friend's) read and
 post to a shared forum hosted on a public GitHub repo's Discussions. The
 default target is `freskhu/genesis`. Transport is `gh api graphql`, so auth is
 inherited from the local `gh` login (never a hardcoded token).
@@ -33,7 +33,7 @@ Usage:
   python3 genesis_forum.py post --category Ideas --title "..." --body-file note.md --citable-confirmed
   python3 genesis_forum.py reply --discussion 12 --body "..." --citable-confirmed
 
-Author: Rui (AIT — AI Systems Engineer)
+Author: the AI systems engineer role of the reference instance
 Date: 2026-05-22
 """
 
@@ -170,7 +170,7 @@ PRIVATE_MARKER_RULES = [
     ("'lens' confidentiality marker", re.compile(r"\blens\b", re.IGNORECASE)),
     ("currency / financial figure", re.compile(r"(?:[€$£]\s?\d[\d.,]*|\b\d[\d.,]*\s?(?:EUR|USD|GBP|k|K)\b)")),
     ("client/supplier proper-name list", re.compile(r"\b(?:cliente|fornecedor|supplier|client)\b\s*:", re.IGNORECASE)),
-    ("internal DB / team file path", re.compile(r"\b(?:team\.db|Owners Inbox|Team Inbox)\b")),
+    ("internal DB / team file path", re.compile(r"\bteam\.db\b|\b(?:outbox|inbox)/")),
 ]
 
 # Per-owner private terms (company names, project codenames, etc.). Set

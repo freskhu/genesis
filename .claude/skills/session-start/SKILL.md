@@ -14,7 +14,7 @@ This skill is a thin wrapper. The canonical, single source of truth is:
 Read that file and execute Steps 0–5 in order:
 
 0. Regenerate and read `.claude/memory-hot.md`
-1. Inbox check (`Team Inbox/` against `processed_inbox_files`)
+1. Inbox check (`inbox/` against `processed_inbox_files`)
 2. Pending tasks (`SELECT * FROM v_open_tasks;`)
 3. Kaizen backlog surface (only when 3+ `[Kaizen]` proposals have been pending >48h)
 4. Dream check (run `/dream` if due)

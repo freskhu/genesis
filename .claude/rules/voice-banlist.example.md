@@ -227,8 +227,8 @@ voice-context: literary
 
 **2. Path-based defaults (fallback) — adaptado ao nosso setup:**
 
-- Prosa académica ou formal em `Owners Inbox/**` → `corporate` (strict)
-- `.claude/**`, `Owners Inbox/**/runbook*`, `Owners Inbox/**/spec*` (docs técnicas) → `documentation`
+- Prosa académica ou formal em `outbox/**` → `corporate` (strict)
+- `.claude/**`, `outbox/**/runbook*`, `outbox/**/spec*` (docs técnicas) → `documentation`
 - Atas, minutas e propostas formais → `formal-minute`
 - Prosa narrativa (se existir no teu setup) → `literary`
 

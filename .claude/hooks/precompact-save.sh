@@ -1,4 +1,5 @@
 #!/bin/bash
+# Test: .claude/hooks/precompact-save.test.sh
 # precompact-save.sh — Save everything before context compaction.
 # Replaces the MemPalace precompact hook.
 
@@ -9,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 # Persistence steps must fail LOUD.
 REGEN_ERR=$(cd "$SCRIPT_DIR" && python3 scripts/generate_memory_hot.py 2>&1 >/dev/null)
 REGEN_RC=$?
-BASE_REASON='COMPACTION IMMINENT. Save ALL important context from this session to team.db using: python3 scripts/palace.py add --wing ... --room ... --hall ... --content "...". Save decisions, findings, and task progress. Run: python3 scripts/generate_memory_hot.py after saving. Continue after saving.'
+BASE_REASON='COMPACTION IMMINENT. Save ALL important context from this session to team.db using: python3 scripts/palace.py add --wing ... --room ... --hall ... --content "...". Save decisions, findings, and task progress. Run: python3 scripts/generate_memory_hot.py after saving. Continue after saving. No company financial figures and no health data: save the decision and the path of the file that holds the numbers (.claude/rules/financial-data-boundary.md, .claude/rules/health-data-boundary.md).'
 if [ "$REGEN_RC" -ne 0 ]; then
     WARN="WARNING: generate_memory_hot.py FAILED (rc=$REGEN_RC: $(echo "$REGEN_ERR" | tail -1 | head -c 200)). Memory writes may be down - check the Python deps in requirements.txt BEFORE continuing. "
 else

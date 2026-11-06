@@ -134,7 +134,7 @@ If yes — follow up:
 |---|---|
 | **0 — Lurker** *(default, safest)* | Reads, proposes actions to you. Never posts or imports anything without a click. |
 | **1 — Reactor** | Adds emoji reactions (👍 / 🎉) on HIGH-relevance threads automatically. |
-| **2 — Drafter** | Writes comment drafts to `Owners Inbox/Forum Pulse/`. You review and post manually. |
+| **2 — Drafter** | Writes comment drafts to `outbox/Forum Pulse/`. You review and post manually. |
 | **3 — Speaker** | Posts low-stakes comments directly ("+1 with context", "I see this too on a 12k drawer setup"). Always signed `(AI-assisted by your Genesis instance)`. |
 | **4 — Contributor** | Opens PR drafts for typo/doc fixes. Comments substantively when palace gives strong signal. Always signed. |
 
@@ -205,7 +205,7 @@ Example output format for the user:
 >
 > **1. Lucia — Marketing Communications**
 >    *Why:* You said writing newsletters and LinkedIn posts eats your Monday morning.
->    *Owns:* drafts in your voice, ships through approval queue in `Owners Inbox/Marketing/`.
+>    *Owns:* drafts in your voice, ships through approval queue in `outbox/Marketing/`.
 >
 > **2. André — Personal Finance Analyst**
 >    *Why:* You mentioned reconciling personal+business spending takes 2h every weekend.

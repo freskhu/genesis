@@ -23,6 +23,7 @@ Date: 2026-04-10
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime
 
@@ -32,8 +33,9 @@ import sqlite_vec
 # Owner display name. Set via /genesis or edit here.
 OWNER_NAME = os.environ.get("GENESIS_OWNER_NAME", "Owner")
 
-TEAM_DB = "Database/team.db"
-OUTPUT_PATH = "<project root>/.claude/memory-hot.md"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEAM_DB = os.path.join(PROJECT_ROOT, "Database", "team.db")
+OUTPUT_PATH = os.path.join(PROJECT_ROOT, ".claude", "memory-hot.md")
 
 
 def connect():
@@ -231,7 +233,7 @@ def section_inbox(db):
     lines = ["## Inbox Não Processado"]
     try:
         import os
-        inbox_path = "<project root>/Team Inbox"
+        inbox_path = os.path.join(PROJECT_ROOT, "inbox")
         if os.path.isdir(inbox_path):
             all_files = os.listdir(inbox_path)
             processed = set()

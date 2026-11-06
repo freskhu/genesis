@@ -1,0 +1,365 @@
+#!/usr/bin/env bash
+# ait-segredo: store a secret in a `.env` file without the value passing through the conversation
+# with the model. ("segredo" is Portuguese for "secret"; the name is kept because the rules use it.)
+#
+# Usage:
+#   scripts/bin/ait-segredo <KEY_NAME>           ask for the value and write it to the target .env
+#   scripts/bin/ait-segredo <KEY_NAME> <FILE>    same, into another file
+#   scripts/bin/ait-segredo --help
+#
+# Run it in a separate terminal window. A `!` command inside the agent prompt has no terminal:
+# the command then exits with 69 without asking for or writing anything.
+#
+# Configuration (environment only; nothing is required):
+#   AIT_ENV_FILE   target file when <FILE> is not given. Default: `.env` at the repository root
+#                  (two levels above this script).
+#
+# What it does:
+#   Reads the value from /dev/tty, with echo off. The value never comes in through an argument or
+#   stdin: it does not show up in `ps` or in the shell history, and no agent or pipe can supply it.
+#   New key: appended at the end. Existing key: asks for confirmation before asking for the value,
+#   and replaces only that line, keeping `export` if it had one. The final file is always mode 600.
+#   Atomic write: a mode-600 temporary file in the same folder, fsync, `mv`. Readers see the old
+#   file or the new one, never half of it.
+#   The output names the key, the file and the value length. The previous value is never shown.
+#
+# Limits:
+#   KEY_NAME in upper case only: [A-Z_][A-Z0-9_]*, up to 64 characters. This catches the mistake
+#   of pasting the value where the name goes. Error messages never repeat the arguments, which
+#   could be the secret itself.
+#   A new FILE is created only if it is called `.env`, `.env.*` or `*.env`; an existing file may
+#   have any name. Its folder must exist. A symbolic link is followed: the real file is written
+#   and the link is kept.
+#   Value: one line, no control characters. No line editing: Backspace counts as a character and
+#   the value is refused; run it again. No length limit (`-icanon`: in canonical mode some
+#   terminals cut the line silently at 1024 bytes). Pasting several lines is refused, and the rest
+#   of the paste is consumed so it does not fall through to the shell.
+#   A key whose current value spans several lines is refused; edit it by hand.
+#   A key repeated in the file: the first line gets the new value, the others are removed.
+#   A comment on the same line as the key is lost. Commented-out lines do not count as the key.
+#   `kill -9` halfway may leave `.<file>.ait-segredo.XXXXXX` (mode 600) or the `.lock` folder.
+#   The next run removes the temporary file; the `.lock` is named in the exit-75 message.
+#
+# Format written (in this order, the first that fits):
+#   only [A-Za-z0-9_./:@%+,=-]                 KEY=value       every reader
+#   no single quote                            KEY='value'
+#   single quote, no $ ` \ "                   KEY="value"
+#   anything else (single quote plus $ ` \ ")  KEY="\$..."     only `source` reads it right; warns
+# There is no format every `.env` reader agrees on. Readers that do not strip quotes receive them
+# as part of the value; the command warns when it had to quote.
+#
+# Revert: there is no backup, on purpose. Every backup holding secrets is one more place to clean
+# when a key is rotated. To restore a value, run the command again with the old value; without it,
+# generate a new one at the provider. To remove a key, delete its line in an editor. Filesystem
+# snapshots and backups may keep the previous value; only rotating the key at the provider
+# invalidates it.
+#
+# Exit codes:
+#    0 written                        1 answered no to the replacement
+#   64 usage (KEY_NAME or arguments)  65 value refused, or a file that cannot be edited
+#   66 missing folder or file         69 no terminal: nothing was asked for or written
+#   73 write failure                  75 busy: another run, or an abandoned `.lock`
+#   77 no permission                 130 cancelled (Ctrl-C or end of input)
+#
+# Requires: bash 3.2+, stty, mktemp, perl (for fsync; falls back to `sync`).
+
+set -uo pipefail
+
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
+# Byte semantics: character classes and lengths do not depend on the caller's locale.
+export LC_ALL=C
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+DEFAULT_ENV="${AIT_ENV_FILE:-$(cd "$SELF_DIR/../.." && pwd -P)/.env}"
+
+umask 077
+ulimit -c 0
+
+# The value lives only in this variable, never exported, and only goes through builtins (`read`,
+# `printf`, `[[`). No child process receives it as an argument or in its environment.
+value=""
+saved_tty=""
+tmpfile=""
+lockdir=""
+
+cleanup() {
+	value=""
+	if [[ -n $saved_tty ]]; then
+		stty "$saved_tty" <&3
+		saved_tty=""
+	fi
+	if [[ -n $tmpfile ]]; then
+		rm -f "$tmpfile"
+		tmpfile=""
+	fi
+	if [[ -n $lockdir ]]; then
+		rmdir "$lockdir"
+		lockdir=""
+	fi
+}
+
+cancel() {
+	cleanup
+	printf '\nait-segredo: cancelled, nothing written\n' >&2
+	exit 130
+}
+
+trap cleanup EXIT
+trap cancel INT TERM HUP
+
+fail() { # fail CODE MESSAGE
+	printf 'ait-segredo: %s\n' "$2" >&2
+	exit "$1"
+}
+
+show_help() {
+	sed -n '2,/^[^#]/p' "${BASH_SOURCE[0]}" | sed -e '$d' -e 's/^# \{0,1\}//'
+}
+
+# Octal mode of a file, on BSD and GNU stat.
+file_mode() {
+	stat -f %Lp "$1" 2>/dev/null || stat -c %a "$1"
+}
+
+USAGE='usage: ait-segredo <KEY_NAME> [FILE]  (the value is asked for with echo off; never as an argument)'
+
+# ---------------------------------------------------------------------------- arguments
+case "${1:-}" in
+-h | --help)
+	show_help
+	exit 0
+	;;
+esac
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+	printf 'ait-segredo: %s\n' "$USAGE" >&2
+	printf 'ait-segredo: target when FILE is not given: %s (set AIT_ENV_FILE to change it)\n' "$DEFAULT_ENV" >&2
+	exit 64
+fi
+
+name="$1"
+[[ ${#name} -le 64 && $name =~ ^[A-Z_][A-Z0-9_]*$ ]] ||
+	fail 64 "invalid KEY_NAME: upper case, digits and _ only, up to 64. If you pasted the value there, it is now in the shell history and counts as exposed. $USAGE"
+
+target="${2:-$DEFAULT_ENV}"
+if [[ ! -e $target && ! -L $target ]]; then
+	target_base="${target##*/}"
+	case "$target_base" in
+	.env | .env.* | *.env) ;;
+	*) fail 64 "a new FILE must be called .env, .env.* or *.env. If you pasted the value there, it is now in the shell history and counts as exposed. $USAGE" ;;
+	esac
+fi
+
+# ---------------------------------------------------------------------------- terminal
+# Probe in a subshell: a failed `exec` of /dev/tty must not decide this process's exit.
+if ! (: <>/dev/tty) 2>/dev/null; then
+	fail 69 "no terminal, nothing was asked for or written. Open a separate terminal window and run this command there with the same key name"
+fi
+exec 3<>/dev/tty || fail 69 "could not open the terminal, nothing was asked for or written"
+
+# ---------------------------------------------------------------------------- file
+if [[ -L $target ]]; then
+	real="$(readlink -f "$target")" || fail 66 "the symbolic link does not point to a valid path"
+	[[ -n $real && -e $real ]] || fail 66 "the symbolic link points to a missing file"
+else
+	real="$target"
+fi
+folder="$(dirname "$real")"
+[[ -d $folder ]] || fail 66 "missing folder: $folder"
+folder="$(cd "$folder" && pwd -P)" || fail 77 "no access to the file's folder"
+base="${real##*/}"
+real="$folder/$base"
+[[ -w $folder ]] || fail 77 "no write access to the folder: $folder"
+
+mode_before="new"
+if [[ -e $real ]]; then
+	[[ -f $real ]] || fail 65 "not a regular file: $real"
+	[[ -O $real ]] || fail 77 "the file belongs to another user: $real"
+	[[ -r $real && -w $real ]] || fail 77 "no read or write access to the file: $real"
+	mode_before="$(file_mode "$real")" || fail 77 "no access to the file: $real"
+	bytes_all="$(wc -c <"$real")" || fail 77 "cannot read the file: $real"
+	bytes_no_nul="$(tr -d '\000' <"$real" | wc -c)" || fail 77 "cannot read the file: $real"
+	[[ $((bytes_all)) -eq $((bytes_no_nul)) ]] || fail 65 "binary file, does not look like a .env: $real"
+fi
+
+key_re="^[[:space:]]*(export[[:space:]]+)?${name}[[:space:]]*="
+
+count_key() { # sets `occurrences`; exits if the current line opens a multi-line value
+	local line rhs quote body
+	occurrences=0
+	[[ -e $real ]] || return 0
+	while IFS= read -r line || [[ -n $line ]]; do
+		[[ $line =~ $key_re ]] || continue
+		occurrences=$((occurrences + 1))
+		rhs="${line#*=}"
+		rhs="${rhs#"${rhs%%[![:space:]]*}"}"
+		quote="${rhs:0:1}"
+		if [[ $quote == '"' || $quote == "'" ]]; then
+			body="${rhs:1}"
+			[[ $body == *"$quote"* ]] ||
+				fail 65 "the current value of $name spans several lines; edit it by hand in $real"
+		fi
+	done <"$real"
+}
+
+count_key
+confirmed=$occurrences
+
+if ((confirmed > 0)); then
+	if ((confirmed > 1)); then
+		printf 'Key %s already exists in %s, on %d lines, which become one.\n' "$name" "$real" "$confirmed" >&3
+	else
+		printf 'Key %s already exists in %s.\n' "$name" "$real" >&3
+	fi
+	printf 'Replace it? The current value is lost, no copy is kept. [y/N] ' >&3
+	IFS= read -r answer <&3 || cancel
+	case "$answer" in
+	y | Y | yes | Yes | YES) ;;
+	*)
+		printf 'ait-segredo: nothing changed\n'
+		exit 1
+		;;
+	esac
+fi
+
+# ---------------------------------------------------------------------------- value
+saved_tty="$(stty -g <&3)" || fail 69 "could not read the terminal state, nothing was written"
+# -icanon: in canonical mode the line can be cut at 1024 bytes without warning.
+# A large -n, not a plain `read`: without -n, bash 3.2 reads the terminal in blocks and drops
+# whatever follows the first Enter, so a multi-line paste would be saved as its first line with no
+# error at all. With -n it reads byte by byte and still stops at Enter.
+stty -echo -icanon min 1 time 0 <&3 || fail 69 "could not turn echo off, nothing was asked for or written"
+
+printf 'Value of %s (hidden; paste and press Enter): ' "$name" >&3
+IFS= read -r -s -n 1048576 value <&3 || cancel
+printf '\n' >&3
+
+# Multi-line paste: the rest is still queued in the terminal. Consume it here, without echo,
+# otherwise the shell reads it next as a command and saves it in the history.
+extra_lines=0
+while IFS= read -r -s -t 1 -n 1 _rest <&3; do
+	extra_lines=1
+done
+
+stty "$saved_tty" <&3 || fail 73 "could not restore the terminal, nothing was written"
+saved_tty=""
+
+((extra_lines == 0)) || fail 65 "the value has more than one line, nothing written"
+[[ -n ${value//[[:space:]]/} ]] || fail 65 "empty value, nothing written"
+[[ $value != *[[:cntrl:]]* ]] || fail 65 "the value has control characters (Backspace counts), nothing written. Run it again and paste in one go"
+[[ $value != "$name="* ]] || fail 65 "you pasted the whole line (KEY_NAME=...); paste only the value. Nothing written"
+length=${#value}
+
+# ---------------------------------------------------------------------------- format
+warnings=()
+if [[ $value =~ ^[A-Za-z0-9_./:@%+,=-]+$ ]]; then
+	new_line="$name=$value"
+elif [[ $value != *"'"* ]]; then
+	new_line="$name='$value'"
+	warnings+=("written in quotes: readers that do not strip quotes receive them as part of the value")
+	if [[ $value == *"\${"* || $value == *"\\\\"* ]]; then
+		warnings+=("readers that expand variables or escapes change this value")
+	fi
+elif [[ $value != *[\$\`\\\"]* ]]; then
+	new_line="$name=\"$value\""
+	warnings+=("written in quotes: readers that do not strip quotes receive them as part of the value")
+else
+	escaped="${value//\\/\\\\}"
+	escaped="${escaped//\"/\\\"}"
+	escaped="${escaped//\$/\\\$}"
+	escaped="${escaped//\`/\\\`}"
+	new_line="$name=\"$escaped\""
+	escaped=""
+	warnings+=("this value is read correctly only by \`source\`: other .env readers receive it changed")
+fi
+if [[ $value == [\"\'\ ]* || $value == *[\"\'\ ] ]]; then
+	warnings+=("the value starts or ends with a quote or a space: check that this is intended; readers that strip quotes lose that character")
+fi
+value=""
+
+# ---------------------------------------------------------------------------- write
+# Prefix without a double dot: `.env` gives `.env.ait-segredo.*`, `config.env` gives `.config.env.ait-segredo.*`.
+prefix="$folder/.${base#.}.ait-segredo"
+lock_target="$prefix.lock"
+for _attempt in 1 2 3 4 5 6; do
+	if [[ ! -e $lock_target ]] && mkdir "$lock_target"; then
+		lockdir="$lock_target"
+		break
+	fi
+	sleep 1
+done
+[[ -n $lockdir ]] ||
+	fail 75 "file busy, nothing written. If no other run is in progress, the lock was abandoned: rmdir '$lock_target'"
+
+# Only one run holds the lock, so a temporary file found here belongs to a dead run.
+rm -f "$prefix."??????
+
+count_key
+if ((occurrences > 0 && confirmed == 0)); then
+	fail 75 "key $name appeared in the file meanwhile, nothing written. Run it again"
+fi
+
+tmpfile="$(mktemp "$prefix.XXXXXX")" || fail 73 "could not create the temporary file in $folder"
+chmod 600 "$tmpfile" || fail 73 "could not set the temporary file to mode 600"
+
+export_re="^[[:space:]]*export[[:space:]]"
+bytes_written=0
+emit() {
+	printf '%s\n' "$1" >&4 || fail 73 "writing the temporary file failed (disk full?), file untouched: $real"
+	bytes_written=$((bytes_written + ${#1} + 1))
+}
+
+exec 4>"$tmpfile" || fail 73 "could not open the temporary file"
+written=0
+if [[ -e $real ]]; then
+	while IFS= read -r line || [[ -n $line ]]; do
+		if [[ $line =~ $key_re ]]; then
+			((written == 0)) || continue
+			written=1
+			if [[ $line =~ $export_re ]]; then
+				emit "export $new_line"
+			else
+				emit "$new_line"
+			fi
+		else
+			emit "$line"
+		fi
+	done <"$real"
+fi
+((written == 1)) || emit "$new_line"
+exec 4>&- || fail 73 "closing the temporary file failed, file untouched: $real"
+
+bytes_on_disk="$(wc -c <"$tmpfile")" || fail 73 "could not measure the temporary file, file untouched: $real"
+[[ $((bytes_on_disk)) -eq $bytes_written ]] || fail 73 "temporary file truncated, file untouched: $real"
+
+# fsync before `mv`: without it, a power cut right after may leave the .env empty, with no copy.
+# Only the path is passed. Where perl is missing, `sync` is the weaker fallback.
+if command -v perl >/dev/null; then
+	perl -MIO::Handle -e 'open(my $f, "+<", $ARGV[0]) or exit 1; $f->sync or exit 1' "$tmpfile" ||
+		fail 73 "fsync of the temporary file failed, file untouched: $real"
+else
+	sync || fail 73 "sync failed, file untouched: $real"
+fi
+
+mv -f "$tmpfile" "$real" || fail 73 "mv failed, file untouched: $real"
+tmpfile=""
+
+# ---------------------------------------------------------------------------- verification
+mode_after="$(file_mode "$real")" || fail 73 "written, but the mode could not be confirmed: $real"
+[[ $mode_after == 600 ]] || fail 73 "written, but the mode is $mode_after: $real"
+count_key
+((occurrences == 1)) || fail 73 "written, but the key appears $occurrences times: $real"
+new_line=""
+
+if ((confirmed > 0)); then
+	state="replaced"
+else
+	state="new"
+fi
+if [[ $mode_before != new && $mode_before != 600 ]]; then
+	state="$state, mode $mode_before changed to 600"
+fi
+printf 'ait-segredo: %s written to %s (%s, length %d, mode 600)\n' "$name" "$real" "$state" "$length"
+for warning in ${warnings[@]+"${warnings[@]}"}; do
+	printf 'ait-segredo: warning: %s\n' "$warning"
+done
+exit 0
