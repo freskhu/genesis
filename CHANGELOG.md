@@ -72,6 +72,7 @@ replaced by checks that measure.
 - `docs/install.md`: migrations 025 to 027 after the schema, and an end-to-end check.
 - README: a "What it has built" section, with cases from the reference instance told
   by problem, agents, what the system does and where a person decides.
+- README: "What it has built" rewritten in first person; company not named; new cases.
 
 ### Folders renamed (forks: action needed)
 - `Team Inbox/` is now `inbox/` and `Owners Inbox/` is now `outbox/` (moved with `git mv`; subfolders unchanged; hooks, scripts, skills, rules, protocols, docs and schema comments follow). In a fork, run `git mv "Team Inbox" inbox && git mv "Owners Inbox" outbox` and update any path of your own that names the old folders.

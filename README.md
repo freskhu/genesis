@@ -28,39 +28,47 @@ It is not a framework. It is not a chatbot. It is the seed of an *operating syst
 
 ## What it has built
 
-Genesis is the template of a team that already works inside a company. Curval Metalworks is a Portuguese metalworking firm that makes industrial fans and turbines for heavy industry, where much of the routine ran on spreadsheets, retyped data, manual month-end checks and the owner's memory. The owner built a team of Claude Code agents, each with a name and a role, and handed it those problems one at a time. The rule: agents prepare, calculate, draft and check; anything that leaves the company or cannot be undone waits for a person to approve, sign or send. With that way of working in place, the same team went on to build a B2B startup, Procurum.
+Genesis is the template of a team that already works inside a company. I built it for a Portuguese metalworking SME, where much of the routine ran on spreadsheets, retyped data, manual month-end checks and memory. I assembled a team of Claude Code agents, each with a name and a role, and handed it those problems one at a time. The rule: agents prepare, calculate, draft and check; what leaves the company or cannot be undone waits for me, or for the person who signs for it, with exceptions I chose on purpose, such as routine order confirmations. The same team went on to build Procurum, a B2B procurement startup.
 
-### Quoting
+### In the SME
 
-Quoting industrial fans, turbines and their parts depended on spreadsheets and on the owner's memory. Vitor, the full-stack developer agent, and Nora, the interface agent, built a phone and desktop app, with Catarina on the ERP link, Diogo on infrastructure and Tiago on QA. The user picks what to quote and enters weights and dimensions; the engine prices each line from the company's rules, with versioned parameters, and produces the PDF. The owner sets the rules, approves every change to the calculation and sends the quote. Quoting is now done by the owner from a phone. Next: a button that writes the email reply as a draft and never sends it.
+**Quoting.** Vitor, the full-stack developer agent, and Nora, the interface agent, built a configurator that prices each line from the company's rules, with versioned parameters, and produces the PDF. An agent now reads the customer's email, prepares the quote and writes the reply as a draft in the thread, with Bruno on the wording. I check it before it leaves and approve every change to the pricing rules.
 
-### Job and project management
+**Replies.** Bruno, the B2B communications agent, drafts replies, requests and follow-ups to customers and suppliers in their language, each with an explicit commercial goal and without committing to a deadline or a price. Tiago, the QA agent, reads every draft before it reaches my inbox. Bruno never sends; I read and send.
 
-Each new job had to start with the full process, and draughtspeople's questions to customers got lost between the project board and email. Every job card now starts as a copy of a template carrying the process checklist. When a draughtsperson leaves a question on a card, the system finds the customer's email thread and Bruno, the B2B communications agent, writes the question as a draft in the customer's language; the answer comes back to the card. Drafts never leave on their own: the owner reviews and sends them.
+**Filing email.** Once I have dealt with a customer email, I move it into that customer's folder. A routine that works by rules, written by Catarina, sorts it by year and project, recognising the job from the order reference checked against the project board and the ERP; other topics sit in theme folders. It moves only what it recognises with high confidence, never deletes or renames, and logs every move with a way to undo it.
 
-### Weld drawing validation
+**Order intake.** For each order arriving by email, a pipeline built around Catarina, the ERP integration agent, enters it in the ERP, forwards it to production and opens it on the job board. Unclear cases go to a review queue Vitor built, and anything irreversible in the ERP stays with me. The customer then receives a confirmation in wording I approved, with figures from the ERP checked against their document; if they do not match, nothing goes out and I get an alert.
 
-Welded production drawings needed a first technical check before signature. Hugo, the welding engineer agent, checks whether the welding procedure covers the material, thicknesses and positions, classifies each finding as blocking or minor, and returns a report, a stamped PDF and a marked-up PDF for the draughtsperson. The human welding engineer signs; Hugo's stamp counts only as a recommendation. Each drawing now reaches the engineer with the first pass done.
+**Job management.** Every job card starts as a copy of a template carrying the process checklist. When an engineer leaves a question for the customer on a card, the system finds the email thread and Bruno drafts the question in the customer's language; the answer comes back to the card with the engineer tagged. I review and send.
 
-### Order intake into the ERP
+**Production drawings.** Joaquim, the product CAD engineer agent, drives the CAD software through its API and takes a job from the 3D model to production drawings: assembly and part sheets, a bill of materials that reconciles with the assembly, and flat patterns for cutting. Hugo checks the weld symbols. Signature fields stay blank on purpose: the company's engineer verifies and signs before anything reaches the shop floor or a customer.
 
-Every order arriving by email had to be entered in the ERP, forwarded to production and opened on the job board. A pipeline built around Catarina, the ERP integration agent, now spots the order in the mailbox, extracts the data and does all three. Clear cases run on their own; unclear ones go to a review queue that Vitor built, where each can be advanced, corrected or discarded. The owner works through that queue, and anything irreversible in the ERP stays with the owner. Entering an order is no longer copy work.
+**Weld drawing validation.** Hugo, the welding engineer agent, checks whether the welding procedure covers the material, thicknesses and positions on each welded drawing, classifies findings as blocking or minor, and returns a report, a stamped PDF and a marked-up PDF for the engineer who drew it. The stamp is a recommendation; the human welding engineer signs.
 
-### Time clock
+**Offline robot programming.** The robot programmer submits a request to a queue; Gonçalo, the offline robot programming agent, writes or converts the program for the welding cells, and the files arrive with the assumptions to validate. Nothing runs on a real cell until the programmer has checked it on the controller and run a dry cycle.
 
-Checking clock-ins, overtime and payroll variables was manual month-end work. Vitor and Nora built an internal web app, with Maria, the research agent, on the rules. It loads the time clock export, opens on the exceptions (missed clock-ins, hours that differ from the ERP), computes overtime by the company's rules and produces the payroll variables file. The person who runs payroll checks and exports; the owner decides who has access. The month-end check now starts with the exceptions in view.
+**Production planning.** Matilde, the production engineer agent, owns the scheduling engine, which sets planned dates per operation at finite capacity, by section, with real people and machines. Every working day an agent reconciles the plan with the ERP, pushes back what was not done and logs what changed and why. The production planner decides. Running as a trial.
 
-### Production planning
+**Time and attendance.** Vitor and Nora built an internal web app, with Maria, the research agent, on the rules. It opens on the exceptions (missed clock-ins, hours that differ from the ERP), computes overtime by the company's rules and produces the payroll variables file. The person who runs payroll checks and exports; I decide who has access.
 
-Planning operations by section, with real people and machines, and replanning when the day went off course, was done by hand. Matilde, the production engineer agent, owns the model and the scheduling engine, which sets planned dates per operation at finite capacity for each open work order. Every working day an agent reconciles the plan with the ERP, pushes back what was not done and logs what changed and why. The production planner reads the plan and decides. Status: in progress; warnings for expected delays are the next goal.
+**Business dashboard, built and watched.** Lena, the data agent, and Nora built a dashboard on the internal network with orders, invoicing and costs by job and by customer, refreshed from the job sheets and from accounting trial balances loaded by hand. Miguel, the finance agent, analysed costs against budget during the build. Since then a heartbeat checks that the dashboard responds and that its data is fresh.
 
-### Offline robot programming
+### Procurum
 
-Writing and converting programs for the robotic welding cells took up the robot programmer's time. The programmer now submits a request to a queue, and Gonçalo, the offline robot programming agent, writes or converts the program; the system checks the import rules and delivers the files with a note of the assumptions to validate. Nothing runs on a real cell without human validation: the programmer checks it on the controller and runs a dry cycle first.
+Procurum is a B2B procurement platform with AI, built without a hired software team. Tomas, the platform agent, owns backend, API and operations; Rui, the AI systems engineer agent, owns agents, prompts and evaluation; Alice, the product design agent, owns the design system; Nora builds the screens and Tiago tests end to end. The platform requests quotes from suppliers by email, reads the replies, compares them and sends the order, and the purchasing operator decides at every step. In progress: a new frontend, where I approve each block before the next.
 
-### Procurum, built by the team
+### Health and money
 
-A B2B procurement platform with AI needed backend, an AI layer, design and QA, without a hired software team. Tomas, the platform agent, owns backend, API and operations; Rui, the AI systems engineer agent, owns agents, prompts and evaluation; Alice, the product design agent, owns the design system, Nora builds the screens and Tiago tests end to end. The buyer writes what is needed and marks suppliers; the platform requests quotes by email, reads the replies, compares them and sends the order. The purchasing operator decides at every step. In progress: a new frontend, where the owner approves each block before the next.
+**Health.** Biometric data, food intake, exercise and sleep flow from my phone and a wearable into a database of their own, kept apart from the team's memory, with a dashboard that shows how they evolve. Agents in clinical analysis, nutrition and exercise physiology read the data when I ask and look for patterns. None of them touches medication or makes a diagnosis.
+
+**Trading.** The work is split by role so that nothing reaches the market on enthusiasm: market analysis, quantitative research that judges whether a signal is real, strategy and risk, and execution. The strategy agent sends every test back to research and never grades its own work. Only a strategy with a positive verdict reaches execution, which validates each order before placing it; reconciliation brakes stop execution when the state does not match. I decide when it starts, stops and restarts.
+
+### The system looking after itself
+
+**Heartbeats.** Scheduled routines used to die quietly. Diogo, the automation reliability agent, owns the watch, which Tomas wrote. A frequent check with no model confirms that services respond, routines ran on time, network shares are mounted and the database is intact, and opens a note per anomaly that closes itself when the evidence returns. When something fails, a local model reads the log and restarts only what died; a failure that keeps returning raises a class note so the cause gets fixed. A separate watcher emails me.
+
+**Kaizen.** Once a week the orchestrator reads the logs, the failures and what the team has learned, looks at ideas from outside, and proposes a few concrete improvements on a board, each with what it is, why it came up and what it implies. I choose which go ahead; only those are applied.
 
 ---
 
